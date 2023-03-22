@@ -1,8 +1,8 @@
 expname = scan_43
-device = 'cuda:0'
+device = 'cuda:2'
 logdir = ./logs
 datadir = ./data/scannet/0043
-pcdir = ./data/scannet/0043/npbgpp.ply
+pcdir = ./data/scannet/0043/43_npbg.ply
 dataset = scan
 
 

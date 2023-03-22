@@ -1,13 +1,13 @@
 expname = scan_00
-device = 'cuda:3'
+device = 'cuda:0'
 logdir = ./logs
 datadir = ./data/scannet/0000
-pcdir = ./data/scannet/0000/00_npbg.ply
+pcdir = ./data/scannet/0000/scene0000_00_vh_clean.ply
 dataset = scan
 
 
 radius = 0.015
-frag_path = './data/fragments/scan_00'
+frag_path = './data/fragments/scan_00_clean'
 H = 960
 W = 1200
 train_size = 720
