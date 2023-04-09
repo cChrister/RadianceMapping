@@ -68,6 +68,9 @@ def backup_code(save_path, save_parent=False, ignored_in_current_folder=None, ma
     current_folder_name = os.path.basename(sys.path[0])
     os.makedirs(os.path.join(backup_code_dir, current_folder_name))
     for file_path in os.listdir(sys.path[0]):
+        flag_t = [True for x in ignored_in_current_folder if x in file_path]
+        if True in flag_t:
+            continue
         if file_path not in ignored_in_current_folder:
             if os.path.isdir(file_path):
                 shutil.copytree(os.path.join(sys.path[0], file_path), os.path.join(backup_code_dir, current_folder_name, file_path))
