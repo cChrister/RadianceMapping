@@ -17,6 +17,7 @@ class nerfDataset(data.Dataset):
         self.device = args.device
         self.pc_dir = args.pcdir
         self.mode = mode
+        self.downsample = args.every_k_points
 
         datadir = args.datadir
         self.blender2opencv = np.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
@@ -37,14 +38,14 @@ class nerfDataset(data.Dataset):
             image_path = os.path.join(datadir, f"{frame['file_path']}.png")
             # print(image_path)
 
-        # load img
+            # load img
             img = Image.open(image_path)
             img = img.resize(self.img_wh, Image.LANCZOS)
             img = self.transform(img).permute(1,2,0)
             self.img_list.append(img[...,:3] * img[...,-1:] + (1 - img[...,-1:])) 
             
 
-        # load pose
+            # load pose
             pose = np.array(frame['transform_matrix']) @ self.blender2opencv
             c2w = torch.tensor(pose, dtype=torch.float32)
 
@@ -61,7 +62,7 @@ class nerfDataset(data.Dataset):
 
 
     def get_pc(self):
-        pc_xyz = load_pc(self.pc_dir, self.device)  # n,3
+        pc_xyz = load_pc(self.pc_dir, self.device, self.downsample)  # n,3
         pc = PointCloud(pc_xyz, self.intrinsic, self.device, self.img_wh)
         return pc
 
@@ -114,6 +115,7 @@ class DTUDataset(data.Dataset):
         print(split, self.id_list)
 
         self.transform = T.ToTensor()
+        self.downsample = args.every_k_points
 
         self.img_list = []
         self.w2c_list = []
@@ -169,7 +171,7 @@ class DTUDataset(data.Dataset):
 
 
     def get_pc(self):
-        pc_xyz = load_pc(self.pcdir, self.device, 1)  # n,3
+        pc_xyz = load_pc(self.pc_dir, self.device, self.downsample)  # n,3
         pc = PointCloud(pc_xyz, self.intrinsic, self.device, self.img_wh)
         return pc
 
@@ -217,6 +219,7 @@ class ScanDataset(data.Dataset):
         self.mode = mode
         self.id_list = []
         self.pc_dir = args.pcdir
+        self.downsample = args.every_k_points
         self.args = args
         img_path = os.path.join(args.datadir, 'color_select')
         pose_path = os.path.join(args.datadir, 'pose_select')
@@ -277,7 +280,7 @@ class ScanDataset(data.Dataset):
 
 
     def get_pc(self):
-        pc_xyz = load_pc(self.pc_dir, self.device, down=4)  # n,3
+        pc_xyz = load_pc(self.pc_dir, self.device, down=self.downsample)  # n,3
         pc = PointCloud(pc_xyz, self.intrinsic, self.device, (self.args.W, self.args.H))
         return pc
 

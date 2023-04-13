@@ -35,6 +35,7 @@ def config_parser():
     parser.add_argument("--xyznear", action='store_true', default=False, help='corrdinates rectification or not')
     parser.add_argument("--pix_mask", action='store_true', default=False, help='using pixel mask or not')
     parser.add_argument("--U", type=int, help='down sampling times of unet')
+    parser.add_argument("--every_k_points", default=1, type=int, help='open3d uniform downsample, param: every_k_points')
     parser.add_argument("--udim", type=str, help='layers dimension of unet')
     parser.add_argument("--vgg_l", type=float, help='the weight of perceptual loss')
     parser.add_argument("--edge_mask", default=0, type=int, help='used in ScanNet 0000_00')
