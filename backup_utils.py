@@ -41,7 +41,7 @@ def backup_code(save_path, save_parent=False, ignored_in_current_folder=None, ma
         marked_in_parent_folder (list): folders in this list will be copied when copying files under parent folder 
     """
     if ignored_in_current_folder is None:
-        ignored_in_current_folder = ['tmp', 'log', 'data', '__pycache__', 'output','sythc_data']
+        ignored_in_current_folder = ['tmp', 'log', 'data', '__pycache__', 'output','sythc_data', '.sh']
     if marked_in_parent_folder is None:
         marked_in_parent_folder = ['mylib']
 
