@@ -10,6 +10,9 @@ from backup_utils import backup_terminal_outputs, backup_code, set_seed
 from torch.utils.tensorboard import SummaryWriter
 from piqa import SSIM, LPIPS, PSNR
 import lpips
+# flip
+from utils import flip_error_map
+
 
 parser = config_parser()
 args = parser.parse_args()
@@ -123,10 +126,9 @@ if __name__ == '__main__':
                 img_pre[img_pre<0] = 0.
                 logger.add_image('train/fea', output['fea_map'], global_step=it, dataformats='HWC')
                 logger.add_image('train/img_fine', img_pre, global_step=it, dataformats='HWC')
-
-
-
                 logger.add_image('train/gtimg', output['gt'], global_step=it, dataformats='HWC')
+                logger.add_image('train/img_flip',  flip_error_map(output['gt'], img_pre)  , global_step=it, dataformats='HWC')
+
             torch.cuda.empty_cache()
         lr_decay(opt)
 
