@@ -1,5 +1,11 @@
 ## Boosting Point Clouds Rendering via Radiance Mapping 
 
+
+epoches = it/200 on Nerf-synthetic, due to 200 images to test
+
+
+
+
 This is the official code of AAAI'23 paper **Boosting Point Clouds Rendering via Radiance Mapping** written in PyTorch. 
 
 ## [Paper](https://arxiv.org/abs/2210.15107)
