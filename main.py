@@ -123,6 +123,9 @@ if __name__ == '__main__':
                 img_pre[img_pre<0] = 0.
                 logger.add_image('train/fea', output['fea_map'], global_step=it, dataformats='HWC')
                 logger.add_image('train/img_fine', img_pre, global_step=it, dataformats='HWC')
+
+
+
                 logger.add_image('train/gtimg', output['gt'], global_step=it, dataformats='HWC')
             torch.cuda.empty_cache()
         lr_decay(opt)
@@ -173,6 +176,7 @@ if __name__ == '__main__':
                     test_psnr += psnr.item()
                     test_ssim += ssim.item()
 
+                    # save ad logs/*/video/
                     if epoch % args.vid_freq == 0: 
 
                         img_pre = img_pre.squeeze(0).permute(1,2,0)
@@ -191,9 +195,9 @@ if __name__ == '__main__':
                 best_psnr = test_psnr
                 ckpt = os.path.join(back_path, 'model.pkl')
                 torch.save(renderer.state_dict(), ckpt)
-                print('model saved!!!!!!!!', best_psnr)
+                print(f'Model Saved! Best PSNR: {best_psnr:{4}.{4}}')
 
-
-            # write_video(video_path, os.path.join(video_path, 'video.avi'), (args.W, args.H))
-            print('test set psnr!!!', test_psnr, best_psnr)
-            # print('write video!!!!!!!!!')
+            if args.epoches <= epoch:
+                print(f"\nReach preset target epoch: {args.epoches}, current epoch: {epoch}")
+                print(f"Current test psnr {test_psnr:{4}.{4}}, Best psnr: {best_psnr:{4}.{4}}, \n")
+                exit(0)
