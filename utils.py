@@ -17,7 +17,7 @@ def config_parser():
     parser.add_argument("--pcdir", type=str, help='point cloud directory')
 
 
-    parser.add_argument("--epoches", type=int, default=-1, help='train epoches. Keep training until CTRL-C, if less than 0')
+    parser.add_argument("--epochs", type=int, default=-1, help='train epochs. Keep training until CTRL-C, if less than 0')
     parser.add_argument("--radius", type=float, help='the radius of points when rasterizing')
     parser.add_argument("--frag_path", type=str, help='directory of saving fragments')
     parser.add_argument("--H", type=int)
@@ -41,7 +41,7 @@ def config_parser():
     parser.add_argument("--vgg_l", type=float, help='the weight of perceptual loss')
     parser.add_argument("--edge_mask", default=0, type=int, help='used in ScanNet 0000_00')
     parser.add_argument("--test_freq", default=10, type=int, help='test every ${test_freq} epoch')
-    parser.add_argument("--vid_freq", default=10, type=int)
+    parser.add_argument("--vid_freq", default=10, type=int, help='save test result every ${vid_freq} epochs')
     parser.add_argument("--pad", type=int, help='num of padding')
 
     return parser

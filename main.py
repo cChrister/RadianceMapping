@@ -125,9 +125,9 @@ if __name__ == '__main__':
                 img_pre[img_pre>1] = 1.
                 img_pre[img_pre<0] = 0.
                 logger.add_image('train/fea', output['fea_map'], global_step=it, dataformats='HWC')
-                logger.add_image('train/img_fine', img_pre, global_step=it, dataformats='HWC')
+                logger.add_image('train/predict', img_pre, global_step=it, dataformats='HWC')
                 logger.add_image('train/gtimg', output['gt'], global_step=it, dataformats='HWC')
-                logger.add_image('train/img_flip',  flip_error_map(output['gt'], img_pre)  , global_step=it, dataformats='HWC')
+                logger.add_image('train/flip_error',  flip_error_map(output['gt'], img_pre)  , global_step=it, dataformats='HWC')
 
             torch.cuda.empty_cache()
         lr_decay(opt)
@@ -161,10 +161,14 @@ if __name__ == '__main__':
 
                     img_pre[img_pre>1] = 1.
                     img_pre[img_pre<0] = 0.
-
+                    
+                    # save test 200 images
+                    # logger.add_image('test/gtimg', img_gt, global_step=i, dataformats='HWC')
+                    # logger.add_image('test/predict', img_pre, global_step=i, dataformats='HWC')
+                    # logger.add_image('test/flip_error',  flip_error_map(img_gt, img_pre)  , global_step=i, dataformats='HWC')
+ 
                     img_pre = img_pre.permute(2,0,1).unsqueeze(0)
                     img_gt = img_gt.permute(2,0,1).unsqueeze(0)
-
 
                     if edge > 0:
                         psnr = fn_psnr(img_pre[...,edge:-edge,edge:-edge], img_gt[...,edge:-edge,edge:-edge])
@@ -178,12 +182,13 @@ if __name__ == '__main__':
                     test_psnr += psnr.item()
                     test_ssim += ssim.item()
 
-                    # save ad logs/*/video/
-                    if epoch % args.vid_freq == 0: 
+                    
+                    # save at logs/*/video/
+                    # if epoch % args.vid_freq == 0:
+                    #     img_pre = img_pre.squeeze(0).permute(1,2,0)
+                    #     img_pre = img_pre.cpu().numpy()
+                    #     plt.imsave(os.path.join(video_it_path, str(i).rjust(3,'0') + '.png'), img_pre)
 
-                        img_pre = img_pre.squeeze(0).permute(1,2,0)
-                        img_pre = img_pre.cpu().numpy()
-                        plt.imsave(os.path.join(video_it_path, str(i).rjust(3,'0') + '.png'), img_pre)
                     # torch.cuda.empty_cache()
                     
             test_lpips = test_lpips / len(test_set)
@@ -199,7 +204,7 @@ if __name__ == '__main__':
                 torch.save(renderer.state_dict(), ckpt)
                 print(f'Model Saved! Best PSNR: {best_psnr:{4}.{4}}')
 
-            if args.epoches <= epoch:
-                print(f"\nReach preset target epoch: {args.epoches}, current epoch: {epoch}")
+            if (args.epochs > 0) and (args.epochs <= epoch):
+                print(f"\nReach preset target epoch: {args.epochs}, current epoch: {epoch}")
                 print(f"Current test psnr {test_psnr:{4}.{4}}, Best psnr: {best_psnr:{4}.{4}}, \n")
                 exit(0)
