@@ -1,10 +1,10 @@
 ## Boosting Point Clouds Rendering via Radiance Mapping 
 
-set args.epoches to -1, if keeping training forever
+set args.epochs to -1, if keeping training forever
 
 NeRF-Synthetic
 * args.epochs = it/100, default=6000
-i.e. -it:250000, epoches=2500
+i.e. -it:250000, epochs=2500
 * vid_freq = 30(epochs), record every 3000 iteration
 
 According to experiment, the epochs are as follows:
