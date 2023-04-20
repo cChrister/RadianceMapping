@@ -73,7 +73,7 @@ class nerfDataset(data.Dataset):
         """
         Returns:
             data dict {"img.rgb": rgb (H W C),
-                       "img.mask": mask (H,W 1),
+                       "img.mask": mask (H W 1),
                        "camera_mat": camera_mat (4,4)
         """
         idx = idx % self.__len__()
