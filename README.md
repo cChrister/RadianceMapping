@@ -1,10 +1,21 @@
 ## Boosting Point Clouds Rendering via Radiance Mapping 
 
+set args.epoches to -1, if keeping training forever
 
-epoches = it/200 on Nerf-synthetic, due to 200 images to test
+NeRF-Synthetic
+* args.epochs = it/100, default=6000
+i.e. -it:250000, epoches=2500
+* vid_freq = 30(epochs), record every 3000 iteration
 
-
-
+According to experiment, the epochs are as follows:
+chair 6000
+drums
+lego 5000
+mic
+materials
+ship 6000
+hotdog
+ficus
 
 This is the official code of AAAI'23 paper **Boosting Point Clouds Rendering via Radiance Mapping** written in PyTorch. 
 
