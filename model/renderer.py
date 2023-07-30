@@ -62,11 +62,11 @@ class Renderer(nn.Module):
 
             _, _, H, W = cat_img.shape
             K = 1
-
-            dirs = cat_img[0,:3].permute(1,2,0)
-            cos = cat_img[0,3:4].permute(1,2,0)
-            gt = cat_img[0,4:7].permute(1,2,0)
-            zbuf = cat_img[0,7:8].permute(1,2,0)
+            # o没有操作
+            dirs = cat_img[0,:3].permute(1,2,0) # [400,400,3]
+            cos = cat_img[0,3:4].permute(1,2,0) # [400,400,1]
+            gt = cat_img[0,4:7].permute(1,2,0)  # [400,400,3]
+            zbuf = cat_img[0,7:8].permute(1,2,0)# [400,400,1]
             if mask_gt is not None:
                 mask_gt = cat_img[0,8:].permute(1,2,0)
 
@@ -91,7 +91,7 @@ class Renderer(nn.Module):
         else:
             xyz_near = xyz_o[zbuf.squeeze(-1).long()]
 
-        feature = self.mlp(xyz_near, dirs) # occ_point 3
+        feature = self.mlp(xyz_near, dirs) # occ_point 8(args.dim)
 
         feature_map = torch.zeros([H, W, K, self.dim], device=zbuf.device)
         feature_map[pix_mask] = feature # [400,400,1,8]
@@ -103,7 +103,8 @@ class Renderer(nn.Module):
         # gt h w 3
         pix_mask = pix_mask.int().unsqueeze(-1).permute(2,3,0,1)# h w 1 1
         feature_map_view  = feature_map.clone().squeeze(-2)[...,:3]
-        feature_map = self.unet(feature_map.permute(2,3,0,1))
+        # feature_map = self.unet(feature_map.permute(2,3,0,1))
+        feature_map = feature_map.permute(2,3,0,1)
 
         if self.mask:
             feature_map = feature_map * pix_mask + (1 - pix_mask) # 1 3 h w
