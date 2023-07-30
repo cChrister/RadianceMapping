@@ -44,7 +44,7 @@ class nerfDataset(data.Dataset):
             self.img_list.append(img[...,:3] * img[...,-1:] + (1 - img[...,-1:])) 
             
 
-        # load pose
+        # load pose # blender use right-hand / opencv use left-hand
             pose = np.array(frame['transform_matrix']) @ self.blender2opencv
             c2w = torch.tensor(pose, dtype=torch.float32)
 

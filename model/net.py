@@ -46,8 +46,8 @@ class MLP(nn.Module):
 
 
     def forward(self, xyz, dirs):
-        xyz = positional_encoding(xyz, 10)
-        dirs = positional_encoding(dirs, 4)
+        xyz = positional_encoding(xyz, 10) # [occ_point,60]
+        dirs = positional_encoding(dirs, 4) # [occ_points,24]
 
         # layer 1
         

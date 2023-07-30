@@ -44,21 +44,21 @@ class Renderer(nn.Module):
         """
 
         if isTrain:
-
-            o = ray[:self.train_size,:self.train_size,:3] # trainH trainW 3
-            dirs = self.pad_w(ray[...,3:6].permute(2,0,1).unsqueeze(0)) # 1 3 H W
-            cos = self.pad_w(ray[...,-1:].permute(2,0,1).unsqueeze(0)) # 1 1 H W
-            gt = self.pad_w(gt.permute(2,0,1).unsqueeze(0)) # 1 3 H W
-            zbuf = self.pad_b(zbuf.permute(2,0,1).unsqueeze(0))
+            # 这一部分我看是把ray拆成三个部分了
+            o = ray[:self.train_size,:self.train_size,:3] # trainH trainW 3 [400,400,3]
+            dirs = self.pad_w(ray[...,3:6].permute(2,0,1).unsqueeze(0)) # 1 3 H W [1,3,600,600]
+            cos = self.pad_w(ray[...,-1:].permute(2,0,1).unsqueeze(0)) # 1 1 H W [1,1,600,600]
+            gt = self.pad_w(gt.permute(2,0,1).unsqueeze(0)) # 1 3 H W [1,3,600,600]
+            zbuf = self.pad_b(zbuf.permute(2,0,1).unsqueeze(0)) # [1,1,600,600]
 
             if mask_gt is not None:
                 # never pad
                 mask_gt = mask_gt.permute(2,0,1).unsqueeze(0)
                 cat_img = torch.cat([dirs, cos, gt, zbuf, mask_gt], dim=1) 
             else:
-                cat_img = torch.cat([dirs, cos, gt, zbuf], dim=1) 
+                cat_img = torch.cat([dirs, cos, gt, zbuf], dim=1) # [1,8,600,600]
 
-            cat_img = self.randomcrop(cat_img)
+            cat_img = self.randomcrop(cat_img) # [1,8,400,400]
 
             _, _, H, W = cat_img.shape
             K = 1
@@ -70,7 +70,7 @@ class Renderer(nn.Module):
             if mask_gt is not None:
                 mask_gt = cat_img[0,8:].permute(1,2,0)
 
-            pix_mask = zbuf > 0.2  # h w k 
+            pix_mask = zbuf > 0.2  # h w k [400,400,1] 存储True or False
             
         else:
 
@@ -81,20 +81,20 @@ class Renderer(nn.Module):
 
             pix_mask = zbuf > 0  # h w k 
 
-        o = o.unsqueeze(-2).expand(H, W, K, 3)[pix_mask] # occ_point 3
-        dirs = dirs.unsqueeze(-2).expand(H, W, K, 3)[pix_mask]  # occ_point 3
-        cos = cos.unsqueeze(-2).expand(H, W, K, 1)[pix_mask]  # occ_point 1
-        zbuf = zbuf.unsqueeze(-1)[pix_mask]  # occ_point 1
+        o = o.unsqueeze(-2).expand(H, W, K, 3)[pix_mask] # occ_point 3 [22039,3]
+        dirs = dirs.unsqueeze(-2).expand(H, W, K, 3)[pix_mask]  # occ_point 3 [22039,3]
+        cos = cos.unsqueeze(-2).expand(H, W, K, 1)[pix_mask]  # occ_point 1 [22039,1]
+        zbuf = zbuf.unsqueeze(-1)[pix_mask]  # occ_point 1 [22039,1]
 
         if self.xyznear:
-            xyz_near = o + dirs * zbuf / cos # occ_point 3
+            xyz_near = o + dirs * zbuf / cos # occ_point 3 论文中 "coordinate rectification"
         else:
             xyz_near = xyz_o[zbuf.squeeze(-1).long()]
 
         feature = self.mlp(xyz_near, dirs) # occ_point 3
 
         feature_map = torch.zeros([H, W, K, self.dim], device=zbuf.device)
-        feature_map[pix_mask] = feature
+        feature_map[pix_mask] = feature # [400,400,1,8]
 
 
         # Unet

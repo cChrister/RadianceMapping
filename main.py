@@ -1,4 +1,7 @@
 import os
+# set devices
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+
 import time
 import torch
 from utils import config_parser, load_fragments, load_idx, lr_decay, write_video, mse2psnr
@@ -71,17 +74,17 @@ if __name__ == '__main__':
     while True:
         renderer.train()
         epoch += 1
-        for batch in train_loader:
+        for batch in train_loader: # batch is image
             it += 1
             idx = int(batch['idx'][0])
-            ray = batch['ray'][0] # h w 7
-            img_gt = batch['rgb'][0] # h w 3
+            ray = batch['ray'][0] # h w 7 [1,400,400,7]
+            img_gt = batch['rgb'][0] # h w 3 [1,400,400,3]
             if args.dataset == 'dtu':
                 mask_gt = batch['mask'][0][..., :1] # h w 1
             else:
-                mask_gt = None
+                mask_gt = None # nerf None 
 
-            zbuf = train_buf[idx].to(args.device) # h w 1
+            zbuf = train_buf[idx].to(args.device) # h w 1 [400,400,1]
 
             output = renderer(zbuf, ray, img_gt, mask_gt, isTrain=True, xyz_o=xyz_o)
 

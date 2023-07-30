@@ -1,13 +1,13 @@
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+
 import torch
 from rasterizer.rasterizer import rasterize
 from utils import config_parser
 from dataset.dataset import nerfDataset, ScanDataset, DTUDataset
-import os
 import numpy as np
 import time
 from utils import config_parser
-
-
 
 if __name__ == '__main__':
 
@@ -18,8 +18,8 @@ if __name__ == '__main__':
         train_set = ScanDataset(args, 'train', 'rasterize')
         test_set = ScanDataset(args, 'test', 'rasterize')
     elif args.dataset == 'nerf':
-        train_set = nerfDataset(args, 'train', 'rasterize')
-        test_set = nerfDataset(args, 'test', 'rasterize')
+        train_set = nerfDataset(args, 'train', 'rasterize') # 100*[400,400]
+        test_set = nerfDataset(args, 'test', 'rasterize') # 200*[400,400]
     elif args.dataset == 'dtu':
         train_set = DTUDataset(args, 'train', 'rasterize')
         test_set = DTUDataset(args, 'test', 'rasterize')
@@ -47,6 +47,14 @@ if __name__ == '__main__':
 
     pc = train_set.get_pc()
 
+    """
+    here we use ner_synthetic dataset
+    each image in dataset has four attributes
+    contains 'idx' 'rgb' 'w2c' 'ray'
+    'rgb' 400*400*3 
+    'w2c' 4*4 world_to_camera 世界坐标系到相机坐标系转换矩阵
+    'ray' 1
+    """
     # test set 
     z_list = []
     id_list = []
@@ -65,8 +73,8 @@ if __name__ == '__main__':
     np.save(test_id_path, id_list)
 
     # train set 
-    z_list = []
-    id_list = []
+    z_list = [] # [100,400,400,1]
+    id_list = [] # [100,400,400,1]
     for i, batch in enumerate(train_loader):
         pose = batch['w2c'][0]
         xyz_ndc = pc.get_ndc(pose)
