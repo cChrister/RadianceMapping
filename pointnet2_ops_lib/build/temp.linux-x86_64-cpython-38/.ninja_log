@@ -1,0 +1,10 @@
+# ninja log v5
+1	32700	1690965988	/home/chenxiang/code/RadianceMapping/pointnet2_ops_lib/build/temp.linux-x86_64-cpython-38/pointnet2_ops/_ext-src/src/bindings.o	195ad3007fbb67c
+0	33547	1690965989	/home/chenxiang/code/RadianceMapping/pointnet2_ops_lib/build/temp.linux-x86_64-cpython-38/pointnet2_ops/_ext-src/src/ball_query.o	b3d589b6f8aa2491
+3	33803	1690965990	/home/chenxiang/code/RadianceMapping/pointnet2_ops_lib/build/temp.linux-x86_64-cpython-38/pointnet2_ops/_ext-src/src/sampling.o	10c9381c94f4fe5d
+1	33935	1690965990	/home/chenxiang/code/RadianceMapping/pointnet2_ops_lib/build/temp.linux-x86_64-cpython-38/pointnet2_ops/_ext-src/src/group_points.o	8d1702507eb18c69
+2	34905	1690965991	/home/chenxiang/code/RadianceMapping/pointnet2_ops_lib/build/temp.linux-x86_64-cpython-38/pointnet2_ops/_ext-src/src/interpolate.o	9172a5ca302f2df8
+3	93158	1690966049	/home/chenxiang/code/RadianceMapping/pointnet2_ops_lib/build/temp.linux-x86_64-cpython-38/pointnet2_ops/_ext-src/src/interpolate_gpu.o	6aa56d35b8ebaa04
+0	94137	1690966050	/home/chenxiang/code/RadianceMapping/pointnet2_ops_lib/build/temp.linux-x86_64-cpython-38/pointnet2_ops/_ext-src/src/ball_query_gpu.o	4d5ca052ccfbcd6
+2	94827	1690966051	/home/chenxiang/code/RadianceMapping/pointnet2_ops_lib/build/temp.linux-x86_64-cpython-38/pointnet2_ops/_ext-src/src/group_points_gpu.o	508fbbdf05a0b110
+3	96750	1690966052	/home/chenxiang/code/RadianceMapping/pointnet2_ops_lib/build/temp.linux-x86_64-cpython-38/pointnet2_ops/_ext-src/src/sampling_gpu.o	53fdaf3d63830ae7

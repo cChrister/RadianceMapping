@@ -10,7 +10,7 @@ This is the official code of AAAI'23 paper **Boosting Point Clouds Rendering via
 conda create -n bpcr python=3.8
 conda activate bpcr
 
-conda install pytorch==1.8.0 torchvision==0.9.0 cudatoolkit=10.2 -c pytorch
+conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=10.2 -c pytorch
 pip install matplotlib
 pip install opencv-python
 pip install lpips

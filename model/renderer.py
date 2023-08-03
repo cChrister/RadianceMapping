@@ -46,10 +46,14 @@ class Renderer(nn.Module):
         if isTrain:
             # 这一部分我看是把ray拆成三个部分了
             o = ray[:self.train_size,:self.train_size,:3] # trainH trainW 3 [400,400,3]
-            dirs = self.pad_w(ray[...,3:6].permute(2,0,1).unsqueeze(0)) # 1 3 H W [1,3,600,600]
-            cos = self.pad_w(ray[...,-1:].permute(2,0,1).unsqueeze(0)) # 1 1 H W [1,1,600,600]
-            gt = self.pad_w(gt.permute(2,0,1).unsqueeze(0)) # 1 3 H W [1,3,600,600]
-            zbuf = self.pad_b(zbuf.permute(2,0,1).unsqueeze(0)) # [1,1,600,600]
+            dirs = ray[...,3:6].permute(2,0,1).unsqueeze(0) # 1 3 H W [1,3,600,600]
+            cos = ray[...,-1:].permute(2,0,1).unsqueeze(0) # 1 1 H W [1,1,600,600]
+            gt = gt.permute(2,0,1).unsqueeze(0) # 1 3 H W [1,3,600,600]
+            zbuf = zbuf.permute(2,0,1).unsqueeze(0) # [1,1,600,600]
+            # dirs = self.pad_w(ray[...,3:6].permute(2,0,1).unsqueeze(0)) # 1 3 H W [1,3,600,600]
+            # cos = self.pad_w(ray[...,-1:].permute(2,0,1).unsqueeze(0)) # 1 1 H W [1,1,600,600]
+            # gt = self.pad_w(gt.permute(2,0,1).unsqueeze(0)) # 1 3 H W [1,3,600,600]
+            # zbuf = self.pad_b(zbuf.permute(2,0,1).unsqueeze(0)) # [1,1,600,600]
 
             if mask_gt is not None:
                 # never pad
@@ -58,7 +62,7 @@ class Renderer(nn.Module):
             else:
                 cat_img = torch.cat([dirs, cos, gt, zbuf], dim=1) # [1,8,600,600]
 
-            cat_img = self.randomcrop(cat_img) # [1,8,400,400]
+            # cat_img = self.randomcrop(cat_img) # [1,8,400,400]
 
             _, _, H, W = cat_img.shape
             K = 1
@@ -70,7 +74,7 @@ class Renderer(nn.Module):
             if mask_gt is not None:
                 mask_gt = cat_img[0,8:].permute(1,2,0)
 
-            pix_mask = zbuf > 0.2  # h w k [400,400,1] 存储True or False
+            pix_mask = zbuf > 4.2  # h w k [400,400,1] 存储True or False
             
         else:
 
