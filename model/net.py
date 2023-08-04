@@ -31,7 +31,7 @@ def positional_encoding(tensor, num_encoding_functions=6, include_input=False, l
             encoding.append(func(tensor * freq))  
 
     # Special case, for no positional encoding
-    return torch.cat(encoding, dim=-1)
+    return torch.cat(encoding, dim=-1).inverse()
 
 
 

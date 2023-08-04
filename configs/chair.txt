@@ -11,7 +11,7 @@ H = 400
 W = 400
 train_size = 400
 
-dim = 8
+dim = 3
 
 mlp_lr = 5e-4
 u_lr = 1.5e-4
