@@ -31,7 +31,7 @@ def positional_encoding(tensor, num_encoding_functions=6, include_input=False, l
             encoding.append(func(tensor * freq))  
 
     # Special case, for no positional encoding
-    return torch.cat(encoding, dim=-1).inverse()
+    return torch.cat(encoding, dim=-1)
 
 
 
@@ -40,9 +40,9 @@ class MLP(nn.Module):
     def __init__(self, dim):
         super(MLP, self).__init__()
 
-        self.l1 = nn.Linear(378,256)
+        self.l1 = nn.Linear(60,256)
         self.l2 = nn.Linear(256,256) 
-        self.l3 = nn.Linear(634,256) 
+        self.l3 = nn.Linear(280,256) 
         self.l4 = nn.Linear(256,128)
         self.l5 = nn.Linear(128,dim)
 
@@ -50,13 +50,13 @@ class MLP(nn.Module):
 
 
     def forward(self, xyz, dirs):
-        xyz_emb = Point_NN_Seg(input_points=xyz.shape[0],embed_dim=54).cuda()
-        dirs_emb = Point_NN_Seg(input_points=dirs.shape[0],embed_dim=54).cuda()
-        xyz = xyz_emb(xyz).squeeze(0).permute(1,0)
-        dirs = dirs_emb(dirs).squeeze(0).permute(1,0)
+        # xyz_emb = Point_NN_Seg(input_points=xyz.shape[0],embed_dim=54).cuda()
+        # dirs_emb = Point_NN_Seg(input_points=dirs.shape[0],embed_dim=54).cuda()
+        # xyz = xyz_emb(xyz).squeeze(0).permute(1,0)
+        # dirs = dirs_emb(dirs).squeeze(0).permute(1,0)
 
-        # xyz = positional_encoding(xyz, 10) # [occ_point,60]
-        # dirs = positional_encoding(dirs, 4) # [occ_points,24]
+        xyz = positional_encoding(xyz, 10).flip(dims=[1]) # [occ_point,60]
+        dirs = positional_encoding(dirs, 4).flip(dims=[1]) # [occ_points,24]
 
         # layer 1
         

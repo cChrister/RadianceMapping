@@ -74,7 +74,7 @@ class Renderer(nn.Module):
             if mask_gt is not None:
                 mask_gt = cat_img[0,8:].permute(1,2,0)
 
-            pix_mask = zbuf > 4.2  # h w k [400,400,1] 存储True or False
+            pix_mask = zbuf > 0.2  # h w k [400,400,1] 存储True or False
             
         else:
 
