@@ -9,6 +9,7 @@ from dataset.dataset import nerfDataset, ScanDataset, DTUDataset
 from model.renderer import Renderer
 import matplotlib.pyplot as plt
 import torch.optim as optim
+import numpy as np
 from backup_utils import backup_terminal_outputs, backup_code, set_seed
 from torch.utils.tensorboard import SummaryWriter
 from piqa import SSIM, LPIPS, PSNR
@@ -18,10 +19,12 @@ parser = config_parser()
 args = parser.parse_args()
 
 set_seed(42)
-back_path = os.path.join('./logs/', time.strftime("%y%m%d-%H%M%S-" + f'{args.expname}-{args.H}-{args.train_size}-{args.U}-{args.udim}-{args.vgg_l}-pix{args.pix_mask}-xyznear{args.xyznear}-{args.scale_min}-{args.scale_max}'))
+np.random.seed(2023)
+# back_path = os.path.join('./logs/', time.strftime("%y%m%d-%H%M%S-" + f'{args.expname}-{args.H}-{args.train_size}-{args.U}-{args.udim}-{args.vgg_l}-pix{args.pix_mask}-xyznear{args.xyznear}-{args.scale_min}-{args.scale_max}'))
+back_path = os.path.join('./logs/', time.strftime("%y%m%d-%H%M%S-"))
 os.makedirs(back_path)
 backup_terminal_outputs(back_path)
-backup_code(back_path, ignored_in_current_folder=['back','pointcloud','data','.git','pytorch_rasterizer.egg-info','build','logs','__pycache__'])
+backup_code(back_path, ignored_in_current_folder=['back','pointcloud','data','.git','pytorch_rasterizer.egg-info','build','logs','__pycache__',])
 print(back_path)
 logger = SummaryWriter(back_path)
 video_path = os.path.join(back_path, 'video')

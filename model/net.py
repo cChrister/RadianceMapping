@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+import numpy as np
 
 # pointnn feature
 from utils import *
@@ -33,6 +34,12 @@ def positional_encoding(tensor, num_encoding_functions=6, include_input=False, l
     # Special case, for no positional encoding
     return torch.cat(encoding, dim=-1)
 
+def fourier_encoding(tensor, ab):
+    tensor = tensor.cpu().numpy()
+    input_encoder = lambda x, a, b: (np.concatenate([a * np.sin((2.*np.pi*x) @ b.T), 
+                    a * np.cos((2.*np.pi*x) @ b.T)], axis=-1) / np.linalg.norm(a))
+    encoding = input_encoder(tensor, *ab)    
+    return torch.from_numpy(encoding.astype('float32')).cuda()
 
 
 class MLP(nn.Module):
@@ -40,9 +47,19 @@ class MLP(nn.Module):
     def __init__(self, dim):
         super(MLP, self).__init__()
 
-        self.l1 = nn.Linear(60,256)
+        self.embedding_scale = 16
+        self.bvals_xyz = np.random.normal(size=[128,3]) * self.embedding_scale
+        self.avals_xyz = np.ones((self.bvals_xyz.shape[0]))
+        self.ab_xyz = [self.avals_xyz, self.bvals_xyz]
+
+        self.bvals_dirs = np.random.normal(size=[72,3]) * self.embedding_scale
+        self.avals_dirs = np.ones((self.bvals_dirs.shape[0]))
+        self.ab_dirs = [self.avals_dirs, self.bvals_dirs]
+        # gaussian_scales = [8,12,14,15,16,17,18,19,20,21,22,23,24,26,28,32] #@param
+
+        self.l1 = nn.Linear(256,256)
         self.l2 = nn.Linear(256,256) 
-        self.l3 = nn.Linear(280,256) 
+        self.l3 = nn.Linear(400,256) 
         self.l4 = nn.Linear(256,128)
         self.l5 = nn.Linear(128,dim)
 
@@ -55,8 +72,11 @@ class MLP(nn.Module):
         # xyz = xyz_emb(xyz).squeeze(0).permute(1,0)
         # dirs = dirs_emb(dirs).squeeze(0).permute(1,0)
 
-        xyz = positional_encoding(xyz, 10).flip(dims=[1]) # [occ_point,60]
-        dirs = positional_encoding(dirs, 4).flip(dims=[1]) # [occ_points,24]
+        # xyz = positional_encoding(xyz, self.ab_xyz).flip(dims=[1]) # [occ_point,60]
+        # dirs = positional_encoding(dirs, self.ab_dirs).flip(dims=[1]) # [occ_points,24]
+
+        xyz = fourier_encoding(xyz,self.ab_xyz) #[28881,3]
+        dirs = fourier_encoding(dirs,self.ab_dirs) #[28881,3]
 
         # layer 1
         
