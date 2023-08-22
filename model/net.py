@@ -35,11 +35,10 @@ def positional_encoding(tensor, num_encoding_functions=6, include_input=False, l
     return torch.cat(encoding, dim=-1)
 
 def fourier_encoding(tensor, ab):
-    tensor = tensor.cpu().numpy()
-    input_encoder = lambda x, a, b: (np.concatenate([a * np.sin((2.*np.pi*x) @ b.T), 
-                    a * np.cos((2.*np.pi*x) @ b.T)], axis=-1) / np.linalg.norm(a))
+    input_encoder = lambda x, a, b: (torch.cat([a * torch.sin(torch.mm((2.*torch.pi*x), b.T)), 
+                a * torch.cos(torch.mm((2.*torch.pi*x), b.T))], axis=-1) / torch.norm(a))
     encoding = input_encoder(tensor, *ab)    
-    return torch.from_numpy(encoding.astype('float32')).cuda()
+    return encoding
 
 
 class MLP(nn.Module):
@@ -48,12 +47,12 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
 
         self.embedding_scale = 16
-        self.bvals_xyz = np.random.normal(size=[128,3]) * self.embedding_scale
-        self.avals_xyz = np.ones((self.bvals_xyz.shape[0]))
+        self.bvals_xyz = torch.normal(mean=0,std=1,size=[128,3]).cuda() * self.embedding_scale
+        self.avals_xyz = torch.ones((self.bvals_xyz.shape[0])).cuda()
         self.ab_xyz = [self.avals_xyz, self.bvals_xyz]
 
-        self.bvals_dirs = np.random.normal(size=[72,3]) * self.embedding_scale
-        self.avals_dirs = np.ones((self.bvals_dirs.shape[0]))
+        self.bvals_dirs = torch.normal(mean=0,std=1,size=[72,3]).cuda() * self.embedding_scale
+        self.avals_dirs = torch.ones((self.bvals_dirs.shape[0])).cuda()
         self.ab_dirs = [self.avals_dirs, self.bvals_dirs]
         # gaussian_scales = [8,12,14,15,16,17,18,19,20,21,22,23,24,26,28,32] #@param
 
