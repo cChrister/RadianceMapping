@@ -102,7 +102,7 @@ class Renderer(nn.Module):
         # color H, W, 1, 8
         # gt h w 3
         pix_mask = pix_mask.int().unsqueeze(-1).permute(2,3,0,1)# h w 1 1
-        feature_map_view  = feature_map.clone().squeeze(-2)[...,:3]
+        feature_map_view = torch.sigmoid(feature_map.clone().squeeze(-2)[...,:3])
         feature_map = self.unet(feature_map.permute(2,3,0,1))
 
         if self.mask:
