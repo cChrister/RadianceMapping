@@ -44,6 +44,7 @@ def config_parser():
     parser.add_argument("--vid_freq", default=10, type=int, help='save test result every ${vid_freq} epochs')
     parser.add_argument("--pad", type=int, help='num of padding')
 
+    parser.add_argument("--use_fourier", action='store_true', default=False, help='whether to enable fourier_encoding')
     return parser
 
 def load_fragments(args):

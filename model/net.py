@@ -29,12 +29,28 @@ def positional_encoding(tensor, num_encoding_functions=6, include_input=False, l
     # Special case, for no positional encoding
     return torch.cat(encoding, dim=-1)
 
-
+def fourier_encoding(tensor, ab):
+    input_encoder = lambda x, a, b: (torch.cat([a * torch.sin(torch.mm((2.*torch.pi*x), b.T)), 
+                a * torch.cos(torch.mm((2.*torch.pi*x), b.T))], axis=-1) / torch.norm(a))
+    encoding = input_encoder(tensor, *ab)    
+    return encoding
 
 class MLP(nn.Module):
 
-    def __init__(self, dim):
+    def __init__(self, dim, use_fourier):
         super(MLP, self).__init__()
+
+        # fourier_encoding init
+        self.use_fourier = use_fourier
+        self.gaussian_scale = 10
+        self.bvals_xyz = torch.normal(mean=0,std=0.4,size=[30,3]).cuda() * self.gaussian_scale
+        self.avals_xyz = torch.ones((self.bvals_xyz.shape[0])).cuda()
+        self.ab_xyz = [self.avals_xyz, self.bvals_xyz]
+
+        self.bvals_dirs = torch.normal(mean=0,std=0.4,size=[12,3]).cuda() * self.gaussian_scale
+        self.avals_dirs = torch.ones((self.bvals_dirs.shape[0])).cuda()
+        self.ab_dirs = [self.avals_dirs, self.bvals_dirs]
+        # gaussian_scales = [8,12,14,15,16,17,18,19,20,21,22,23,24,26,28,32]
 
         self.l1 = nn.Linear(60,256)
         self.l2 = nn.Linear(256,256) 
@@ -46,8 +62,12 @@ class MLP(nn.Module):
 
 
     def forward(self, xyz, dirs):
-        xyz = positional_encoding(xyz, 10)
-        dirs = positional_encoding(dirs, 4)
+        if not self.use_fourier:
+            xyz = positional_encoding(xyz, 10)
+            dirs = positional_encoding(dirs, 4)
+        else:
+            xyz = fourier_encoding(xyz,self.ab_xyz)
+            dirs = fourier_encoding(dirs,self.ab_dirs)
 
         # layer 1
         

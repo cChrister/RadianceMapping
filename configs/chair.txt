@@ -30,3 +30,5 @@ vgg_l = 0.01
 edge_mask = 0
 test_freq = 10
 vid_freq = 30
+
+use_fourier

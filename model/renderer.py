@@ -10,7 +10,7 @@ class Renderer(nn.Module):
 
     def __init__(self, args):
         super(Renderer, self).__init__()
-        self.mlp = MLP(args.dim).to(args.device)
+        self.mlp = MLP(args.dim, args.use_fourier).to(args.device)
         self.unet = UNet(args).to(args.device)
         self.dim = args.dim
 
