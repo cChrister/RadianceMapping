@@ -1,6 +1,6 @@
 import os
 # set devices
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 import time
 import torch
@@ -21,7 +21,8 @@ args = parser.parse_args()
 set_seed(42)
 np.random.seed(2023)
 # back_path = os.path.join('./logs/', time.strftime("%y%m%d-%H%M%S-" + f'{args.expname}-{args.H}-{args.train_size}-{args.U}-{args.udim}-{args.vgg_l}-pix{args.pix_mask}-xyznear{args.xyznear}-{args.scale_min}-{args.scale_max}'))
-back_path = os.path.join('./logs/', time.strftime("%y%m%d-%H%M%S-"))
+# back_path = os.path.join('./logs/', time.strftime("%y%m%d-%H%M%S-"))
+back_path = './logs/hyper_60'
 os.makedirs(back_path)
 backup_terminal_outputs(back_path)
 backup_code(back_path, ignored_in_current_folder=['back','pointcloud','data','.git','pytorch_rasterizer.egg-info','build','logs','__pycache__',])

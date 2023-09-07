@@ -46,52 +46,50 @@ class MLP(nn.Module):
     def __init__(self, dim):
         super(MLP, self).__init__()
 
-        self.embedding_scale = 16
-        self.bvals_xyz = torch.normal(mean=0,std=1,size=[128,3]).cuda() * self.embedding_scale
+        self.gaussian_scale = 10
+        self.bvals_xyz = torch.normal(mean=0,std=0.4,size=[30,3]).cuda() * self.gaussian_scale
         self.avals_xyz = torch.ones((self.bvals_xyz.shape[0])).cuda()
         self.ab_xyz = [self.avals_xyz, self.bvals_xyz]
 
-        self.bvals_dirs = torch.normal(mean=0,std=1,size=[72,3]).cuda() * self.embedding_scale
+        self.bvals_dirs = torch.normal(mean=0,std=0.4,size=[12,3]).cuda() * self.gaussian_scale
         self.avals_dirs = torch.ones((self.bvals_dirs.shape[0])).cuda()
         self.ab_dirs = [self.avals_dirs, self.bvals_dirs]
-        # gaussian_scales = [8,12,14,15,16,17,18,19,20,21,22,23,24,26,28,32] #@param
+        # gaussian_scales = [8,12,14,15,16,17,18,19,20,21,22,23,24,26,28,32]
 
-        self.l1 = nn.Linear(256,256)
+        self.l1 = nn.Linear(60,256)
         self.l2 = nn.Linear(256,256) 
-        self.l3 = nn.Linear(400,256) 
-        self.l4 = nn.Linear(256,128)
+        self.l3 = nn.Linear(256,256) 
+        self.l4 = nn.Linear(280,128)
         self.l5 = nn.Linear(128,dim)
 
+        self.hyper = nn.Sequential(
+            nn.Linear(60,256),
+            nn.ReLU(),
+            nn.Linear(256,8),
+        )
         self.ac = nn.ReLU()
 
 
     def forward(self, xyz, dirs):
-        # xyz_emb = Point_NN_Seg(input_points=xyz.shape[0],embed_dim=54).cuda()
-        # dirs_emb = Point_NN_Seg(input_points=dirs.shape[0],embed_dim=54).cuda()
-        # xyz = xyz_emb(xyz).squeeze(0).permute(1,0)
-        # dirs = dirs_emb(dirs).squeeze(0).permute(1,0)
-
-        # xyz = positional_encoding(xyz, self.ab_xyz).flip(dims=[1]) # [occ_point,60]
-        # dirs = positional_encoding(dirs, self.ab_dirs).flip(dims=[1]) # [occ_points,24]
-
         xyz = fourier_encoding(xyz,self.ab_xyz) #[28881,3]
         dirs = fourier_encoding(dirs,self.ab_dirs) #[28881,3]
 
-        # layer 1
+        freq = self.hyper(xyz).unsqueeze(-1)
         
         x = self.l1(xyz)
-        x = self.ac(x)
+        x = x * torch.sin(x * freq[:,0] + freq[:,1])
 
         x = self.l2(x)
-        x = self.ac(x)
+        x = x * torch.sin(x * freq[:,2] + freq[:,3])
+
+
+        x = self.l3(x)
+        x = x * torch.sin(x * freq[:,4] + freq[:,5])
 
         x = torch.cat([x, dirs], dim=-1)
 
-        x = self.l3(x)
-        x = self.ac(x)
-
         x = self.l4(x)
-        x = self.ac(x)
+        x = x * torch.sin(x * freq[:,6] + freq[:,7])
 
         x = self.l5(x)
         return x
