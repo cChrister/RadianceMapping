@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch
 
+
 def positional_encoding(tensor, num_encoding_functions=6, include_input=False, log_sampling=True):
     encoding = [tensor] if include_input else []
     frequency_bands = None
@@ -24,16 +25,34 @@ def positional_encoding(tensor, num_encoding_functions=6, include_input=False, l
     for freq in frequency_bands:
         for func in [torch.sin, torch.cos]:
             # print(func(tensor * freq).shape)
-            encoding.append(func(tensor * freq))  
+            encoding.append(func(tensor * freq))
 
     # Special case, for no positional encoding
     return torch.cat(encoding, dim=-1)
 
-def fourier_encoding(tensor, ab):
-    input_encoder = lambda x, a, b: (torch.cat([a * torch.sin(torch.mm((2.*torch.pi*x), b.T)), 
-                a * torch.cos(torch.mm((2.*torch.pi*x), b.T))], axis=-1) / torch.norm(a))
-    encoding = input_encoder(tensor, *ab)    
+
+def fourier_encoding(tensor, choice='xyz', gaussian_scale=10, xyz_embedding_size=60, dirs_embedding_size=24, sigma=0.4):
+    # https://github.com/tancik/fourier-feature-networks/blob/master/Experiments/3d_simple_nerf.ipynb
+    # raw embeding size -> 256 performs very bad
+    if choice is 'xyz':
+        bvals_xyz = torch.normal(
+            mean=0, std=sigma, size=[xyz_embedding_size, 3], device=tensor.device) * gaussian_scale
+        avals_xyz = torch.ones((bvals_xyz.shape[0]), device=tensor.device)
+        ab_xyz = [avals_xyz, bvals_xyz]
+    elif choice is 'dirs':
+        bvals_dirs = torch.normal(
+            mean=0, std=sigma, size=[dirs_embedding_size, 3], device=tensor.device) * gaussian_scale
+        avals_dirs = torch.ones((bvals_dirs.shape[0]), device=tensor.device)
+        ab_dirs = [avals_dirs, bvals_dirs]
+    else:
+        raise NotImplementedError
+
+    def input_encoder(x, a, b): return (torch.cat([a * torch.sin(torch.mm((2.*torch.pi*x), b.T)),
+                                                   a * torch.cos(torch.mm((2.*torch.pi*x), b.T))], axis=-1) / torch.norm(a))
+    ab = ab_xyz if choice is 'xyz' else ab_dirs
+    encoding = input_encoder(tensor, *ab)
     return encoding
+
 
 class MLP(nn.Module):
 
@@ -42,35 +61,24 @@ class MLP(nn.Module):
 
         # fourier_encoding init
         self.use_fourier = use_fourier
-        self.gaussian_scale = 10
-        self.bvals_xyz = torch.normal(mean=0,std=0.4,size=[30,3]).cuda() * self.gaussian_scale
-        self.avals_xyz = torch.ones((self.bvals_xyz.shape[0])).cuda()
-        self.ab_xyz = [self.avals_xyz, self.bvals_xyz]
 
-        self.bvals_dirs = torch.normal(mean=0,std=0.4,size=[12,3]).cuda() * self.gaussian_scale
-        self.avals_dirs = torch.ones((self.bvals_dirs.shape[0])).cuda()
-        self.ab_dirs = [self.avals_dirs, self.bvals_dirs]
-        # gaussian_scales = [8,12,14,15,16,17,18,19,20,21,22,23,24,26,28,32]
-
-        self.l1 = nn.Linear(60,256)
-        self.l2 = nn.Linear(256,256) 
-        self.l3 = nn.Linear(280,256) 
-        self.l4 = nn.Linear(256,128)
-        self.l5 = nn.Linear(128,dim)
+        self.l1 = nn.Linear(60, 256)
+        self.l2 = nn.Linear(256, 256)
+        self.l3 = nn.Linear(280, 256)
+        self.l4 = nn.Linear(256, 128)
+        self.l5 = nn.Linear(128, dim)
 
         self.ac = nn.ReLU()
-
 
     def forward(self, xyz, dirs):
         if not self.use_fourier:
             xyz = positional_encoding(xyz, 10)
             dirs = positional_encoding(dirs, 4)
         else:
-            xyz = fourier_encoding(xyz,self.ab_xyz)
-            dirs = fourier_encoding(dirs,self.ab_dirs)
+            xyz = fourier_encoding(xyz, 'xyz')
+            dirs = fourier_encoding(dirs, 'dirs')
 
         # layer 1
-        
         x = self.l1(xyz)
         x = self.ac(x)
 
@@ -87,8 +95,6 @@ class MLP(nn.Module):
 
         x = self.l5(x)
         return x
-
-
 
 
 class GatedBlock(nn.Module):
@@ -143,11 +149,13 @@ class UpsampleBlock(nn.Module):
 
         #  = out_channels if same_num_filt else out_channels * 2
         if upsample_mode == 'deconv':
-            self.up = nn.ConvTranspose2d(num_filt, out_channels, 4, stride=2, padding=1)
+            self.up = nn.ConvTranspose2d(
+                num_filt, out_channels, 4, stride=2, padding=1)
             self.conv = conv_block(out_channels * 2, out_channels)
-        elif upsample_mode=='bilinear' or upsample_mode=='nearest':
+        elif upsample_mode == 'bilinear' or upsample_mode == 'nearest':
             self.up = nn.Sequential(nn.Upsample(scale_factor=2, mode=upsample_mode),
-                                        nn.Conv2d(num_filt, out_channels, 3, padding=1)
+                                    nn.Conv2d(num_filt, out_channels,
+                                              3, padding=1)
                                     )
             self.conv = conv_block(out_channels * 2, out_channels)
         else:
@@ -155,7 +163,7 @@ class UpsampleBlock(nn.Module):
 
     def forward(self, inputs1, inputs2):
         in1_up = self.up(inputs1)
-        output= self.conv(torch.cat([in1_up, inputs2], 1))
+        output = self.conv(torch.cat([in1_up, inputs2], 1))
 
         return output
 
@@ -193,14 +201,14 @@ class UNet(nn.Module):
         self.final = nn.Sequential(
             nn.Conv2d(filters[0], out_dim, 1),
         )
-        self.U  = args.U
+        self.U = args.U
 
     def forward(self, x):
 
-        in64 = self.start(x) 
-        
-        down1 = self.down1(in64) 
-        down2 = self.down2(down1) 
+        in64 = self.start(x)
+
+        down1 = self.down1(in64)
+        down2 = self.down2(down1)
         if self.U == 4:
             down3 = self.down3(down2)
             down4 = self.down4(down3)
@@ -211,5 +219,5 @@ class UNet(nn.Module):
         else:
             up2 = self.up2(down2, down1)
         up1 = self.up1(up2, in64)
-        
+
         return self.final(up1)
