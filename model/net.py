@@ -34,12 +34,12 @@ def positional_encoding(tensor, num_encoding_functions=6, include_input=False, l
 def fourier_encoding(tensor, choice='xyz', gaussian_scale=10, xyz_embedding_size=60, dirs_embedding_size=24, sigma=0.4):
     # https://github.com/tancik/fourier-feature-networks/blob/master/Experiments/3d_simple_nerf.ipynb
     # raw embeding size -> 256 performs very bad
-    if choice is 'xyz':
+    if choice == 'xyz':
         bvals_xyz = torch.normal(
             mean=0, std=sigma, size=[xyz_embedding_size, 3], device=tensor.device) * gaussian_scale
         avals_xyz = torch.ones((bvals_xyz.shape[0]), device=tensor.device)
         ab_xyz = [avals_xyz, bvals_xyz]
-    elif choice is 'dirs':
+    elif choice == 'dirs':
         bvals_dirs = torch.normal(
             mean=0, std=sigma, size=[dirs_embedding_size, 3], device=tensor.device) * gaussian_scale
         avals_dirs = torch.ones((bvals_dirs.shape[0]), device=tensor.device)
@@ -49,7 +49,7 @@ def fourier_encoding(tensor, choice='xyz', gaussian_scale=10, xyz_embedding_size
 
     def input_encoder(x, a, b): return (torch.cat([a * torch.sin(torch.mm((2.*torch.pi*x), b.T)),
                                                    a * torch.cos(torch.mm((2.*torch.pi*x), b.T))], axis=-1) / torch.norm(a))
-    ab = ab_xyz if choice is 'xyz' else ab_dirs
+    ab = ab_xyz if choice == 'xyz' else ab_dirs
     encoding = input_encoder(tensor, *ab)
     return encoding
 
