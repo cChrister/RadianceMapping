@@ -31,17 +31,17 @@ def positional_encoding(tensor, num_encoding_functions=6, include_input=False, l
     return torch.cat(encoding, dim=-1)
 
 
-def fourier_encoding(tensor, choice='xyz', gaussian_scale=10, xyz_embedding_size=60, dirs_embedding_size=24, sigma=0.4):
+def fourier_encoding(tensor, choice='xyz', gaussian_scale=10, xyz_size=30, dirs_size=12, sigma=0.4):
     # https://github.com/tancik/fourier-feature-networks/blob/master/Experiments/3d_simple_nerf.ipynb
     # raw embeding size -> 256 performs very bad
     if choice == 'xyz':
         bvals_xyz = torch.normal(
-            mean=0, std=sigma, size=[xyz_embedding_size, 3], device=tensor.device) * gaussian_scale
+            mean=0, std=sigma, size=[xyz_size, 3], device=tensor.device) * gaussian_scale
         avals_xyz = torch.ones((bvals_xyz.shape[0]), device=tensor.device)
         ab_xyz = [avals_xyz, bvals_xyz]
     elif choice == 'dirs':
         bvals_dirs = torch.normal(
-            mean=0, std=sigma, size=[dirs_embedding_size, 3], device=tensor.device) * gaussian_scale
+            mean=0, std=sigma, size=[dirs_size, 3], device=tensor.device) * gaussian_scale
         avals_dirs = torch.ones((bvals_dirs.shape[0]), device=tensor.device)
         ab_dirs = [avals_dirs, bvals_dirs]
     else:
@@ -62,6 +62,7 @@ class MLP(nn.Module):
         # fourier_encoding init
         self.use_fourier = use_fourier
 
+        # note: 60 is the embedding dimension after positional encoding
         self.l1 = nn.Linear(60, 256)
         self.l2 = nn.Linear(256, 256)
         self.l3 = nn.Linear(280, 256)
