@@ -17,7 +17,7 @@ def config_parser():
     parser.add_argument("--pcdir", type=str, help='point cloud directory')
 
 
-    parser.add_argument("--epochs", type=int, default=-1, help='train epochs. Keep training until CTRL-C, if less than 0')
+    parser.add_argument("--epochs", type=int, default=6000, help='train epochs. Keep training until CTRL-C, if less than 0')
     parser.add_argument("--radius", type=float, help='the radius of points when rasterizing')
     parser.add_argument("--frag_path", type=str, help='directory of saving fragments')
     parser.add_argument("--H", type=int)

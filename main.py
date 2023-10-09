@@ -13,22 +13,43 @@ import lpips
 # flip
 from utils import flip_error_map
 
+# DEBUG = False
+DEBUG = True
 
 parser = config_parser()
 args = parser.parse_args()
 
 set_seed(42)
-back_path = os.path.join('./logs/', time.strftime("%y%m%d-%H%M%S-" + f'{args.expname}-{args.H}-{args.train_size}-{args.U}-{args.udim}-{args.vgg_l}-pix{args.pix_mask}-xyznear{args.xyznear}-{args.scale_min}-{args.scale_max}'))
+log_dir = './debug_logs/' if DEBUG else './logs/'
+back_path = os.path.join(log_dir, time.strftime("%y%m%d-%H%M%S-" + f'{args.expname}-{args.H}-{args.train_size}-{args.U}-{args.udim}-{args.vgg_l}-pix{args.pix_mask}-xyznear{args.xyznear}-{args.scale_min}-{args.scale_max}'))
 os.makedirs(back_path)
 backup_terminal_outputs(back_path)
-backup_code(back_path, ignored_in_current_folder=['back','pointcloud','data','.git','pytorch_rasterizer.egg-info','build','logs','__pycache__', '.sh'])
+backup_code(back_path, ignored_in_current_folder=['debug_logs', 'back','pointcloud','data','.git','pytorch_rasterizer.egg-info','build','logs','__pycache__', '.sh'])
 print(back_path)
 logger = SummaryWriter(back_path)
 video_path = os.path.join(back_path, 'video')
 os.makedirs(video_path)
 
+import logging
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+def setup_logger(name, log_file, level=logging.INFO):
+    """To setup as many loggers as you want"""
+
+    handler = logging.FileHandler(log_file)
+    handler.setFormatter(formatter)
+
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+
+    return logger
+
+stdlog = setup_logger('bpcr', os.path.join(back_path, 'metric.txt'))
 
 if __name__ == '__main__':
+    def log_string(str):
+        stdlog.info(str)
+        print(str)
 
     if args.dataset == 'nerf':
         train_set = nerfDataset(args, 'train', 'render')
@@ -71,8 +92,10 @@ if __name__ == '__main__':
     it = 0
     epoch = 0
     best_psnr = 0
+    training_time = 0.
     while True:
         renderer.train()
+        t1 = time.time()
         epoch += 1
         for batch in train_loader:
             it += 1
@@ -129,8 +152,9 @@ if __name__ == '__main__':
                 logger.add_image('train/gtimg', output['gt'], global_step=it, dataformats='HWC')
                 logger.add_image('train/flip_error',  flip_error_map(output['gt'], img_pre)  , global_step=it, dataformats='HWC')
 
-            torch.cuda.empty_cache()
         lr_decay(opt)
+        t2 = time.time()
+        training_time += (t2 - t1) / 3600
 
 
         # test
@@ -190,19 +214,23 @@ if __name__ == '__main__':
                     #     plt.imsave(os.path.join(video_it_path, str(i).rjust(3,'0') + '.png'), img_pre)
 
                     # torch.cuda.empty_cache()
-                    
+
             test_lpips = test_lpips / len(test_set)
             test_psnr = test_psnr / len(test_set)
             test_ssim = test_ssim / len(test_set)
             logger.add_scalar('test/psnr', test_psnr, it)
             logger.add_scalar('test/lpips', test_lpips, it)
             logger.add_scalar('test/ssim', test_ssim, it)
+            log_string(f'test_PSNR: {test_psnr}, it: {it}')
+            log_string(f'test_lpips: {test_lpips}, it: {it}')
+            log_string(f'test_ssim: {test_ssim}, it: {it}')
 
             if test_psnr > best_psnr:
                 best_psnr = test_psnr
                 ckpt = os.path.join(back_path, 'model.pkl')
                 torch.save(renderer.state_dict(), ckpt)
-                print(f'Model Saved! Best PSNR: {best_psnr:{4}.{4}}')
+                log_string(f'Model Saved! Best PSNR: {best_psnr}')
+            log_string(f'Test PSNR! Epoch:{epoch} Training_time: {training_time:{4}.{4}} hours, current: {test_psnr:{4}.{4}}, best: {best_psnr:{4}.{4}}')
 
             if (args.epochs > 0) and (args.epochs <= epoch):
                 print(f"\nReach preset target epoch: {args.epochs}, current epoch: {epoch}")

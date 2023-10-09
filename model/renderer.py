@@ -14,6 +14,8 @@ class Renderer(nn.Module):
         self.unet = UNet(args).to(args.device)
         self.dim = args.dim
 
+        self.use_crop = False
+
         if args.xyznear:
             self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(args.scale_min, args.scale_max), ratio=(1., 1.))
         else:
@@ -46,10 +48,17 @@ class Renderer(nn.Module):
         if isTrain:
 
             o = ray[:self.train_size,:self.train_size,:3] # trainH trainW 3
-            dirs = self.pad_w(ray[...,3:6].permute(2,0,1).unsqueeze(0)) # 1 3 H W
-            cos = self.pad_w(ray[...,-1:].permute(2,0,1).unsqueeze(0)) # 1 1 H W
-            gt = self.pad_w(gt.permute(2,0,1).unsqueeze(0)) # 1 3 H W
-            zbuf = self.pad_b(zbuf.permute(2,0,1).unsqueeze(0))
+            
+            if self.use_crop:
+                dirs = self.pad_w(ray[...,3:6].permute(2,0,1).unsqueeze(0)) # 1 3 H W
+                cos = self.pad_w(ray[...,-1:].permute(2,0,1).unsqueeze(0)) # 1 1 H W
+                gt = self.pad_w(gt.permute(2,0,1).unsqueeze(0)) # 1 3 H W
+                zbuf = self.pad_b(zbuf.permute(2,0,1).unsqueeze(0))
+            else:
+                dirs = ray[...,3:6].permute(2,0,1).unsqueeze(0) # 1 3 H W
+                cos = ray[...,-1:].permute(2,0,1).unsqueeze(0) # 1 1 H W
+                gt = gt.permute(2,0,1).unsqueeze(0) # 1 3 H W
+                zbuf = zbuf.permute(2,0,1).unsqueeze(0)
 
             if mask_gt is not None:
                 # never pad
@@ -58,7 +67,8 @@ class Renderer(nn.Module):
             else:
                 cat_img = torch.cat([dirs, cos, gt, zbuf], dim=1) 
 
-            cat_img = self.randomcrop(cat_img)
+            if self.use_crop:
+                cat_img = self.randomcrop(cat_img)
 
             _, _, H, W = cat_img.shape
             K = 1
