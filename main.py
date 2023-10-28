@@ -233,7 +233,7 @@ if __name__ == '__main__':
                 ckpt = os.path.join(back_path, 'model.pkl')
                 torch.save(renderer.state_dict(), ckpt)
                 log_string(f'Model Saved! Best PSNR: {best_psnr}')
-            log_string(f'Test PSNR! Epoch:{epoch} Training_time: {training_time:{4}.{4}} hours, current: {test_psnr:{4}.{4}}, best: {best_psnr:{4}.{4}}')
+            log_string(f'Test PSNR! Epoch:{epoch} Training_time: {training_time:{4}.{4}} hours, current: {test_psnr:{4}.{4}}')
 
             if (args.epochs > 0) and (args.epochs <= epoch):
                 print(f"\nReach preset target epoch: {args.epochs}, current epoch: {epoch}")

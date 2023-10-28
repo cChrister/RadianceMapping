@@ -49,14 +49,37 @@ class Renderer(nn.Module):
             fea_map: the first three dimensions of the feature map of radiance mapping
         """
 
+        H, W, _ = zbufs.shape # [H, W, points_per_pixel]
+        
+        if self.use_crop and isTrain:
+            ray_pad = self.pad_w(ray.permute(2, 0, 1).unsqueeze(0))
+            gt_pad = self.pad_w(gt.permute(2, 0, 1).unsqueeze(0))
+            zbufs_pad = self.pad_b(zbufs.permute(2, 0, 1).unsqueeze(0))
+            
+            cat_img = torch.cat([ray_pad, gt_pad, zbufs_pad], dim=1)
+            cat_img = self.randomcrop(cat_img)
+            o_crop = cat_img[0, :3].permute(1, 2, 0)
+            dirs_crop = cat_img[0, 3:6].permute(1, 2, 0)
+            cos_crop = cat_img[0, 6:7].permute(1, 2, 0)
+            gt_crop = cat_img[0, 7:10].permute(1, 2, 0)
+            gt = gt_crop
+            zbufs_crop = cat_img[0, 10:].permute(1, 2, 0)
+
+
         radiance_map = []
         for i in range(zbufs.shape[-1]):
-            zbuf = zbufs[..., i].unsqueeze(-1) # [H, W, 1]
             
-            H, W, _ = zbuf.shape
             o = ray[..., :3] # [H, W, 1]
-            dirs = ray[...,3:6] # [H, W, 3]
-            cos = ray[...,-1:] # [H, W, 1]
+            
+            if self.use_crop and isTrain:
+                zbuf = zbufs_crop[..., i].unsqueeze(-1) # [H, W, 1]
+                dirs = dirs_crop
+                cos = cos_crop
+            else:
+                zbuf = zbufs[..., i].unsqueeze(-1) # [H, W, 1]
+                dirs = ray[...,3:6] # [H, W, 3]
+                cos = ray[...,-1:] # [H, W, 1]
+
 
             if isTrain:
                 pix_mask = zbuf > 0.2 # [H, W, 1]
@@ -88,6 +111,11 @@ class Renderer(nn.Module):
         feature_map_view = fuse_rdmp.clone().squeeze(0)[:3, :, :]
         feature_map_view = torch.sigmoid(feature_map_view.permute(1, 2, 0))
         ret = self.unet(fuse_rdmp) # [1, 3, H, W]
+
+        pix_mask = pix_mask.int().unsqueeze(-1).permute(2,3,0,1) # [1, 1, H, W]
+        if self.mask:
+            ret = ret * pix_mask + (1 - pix_mask) # 1 3 h w
+
         img = ret.squeeze(0).permute(1, 2, 0) # [H, W, 3]
 
         return {'img':img, 'gt':gt, 'mask_gt':mask_gt, 'fea_map':feature_map_view}
