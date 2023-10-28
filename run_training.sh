@@ -6,6 +6,6 @@
 # Created Time: Tue 07 Mar 2023 11:12:53 PM CST
 # Brief: 
 #########################################################################
-echo "------Training: $1, device $2-------"
-export CUDA_VISIBLE_DEVICES=$2
-python main.py --config=configs/$1.txt
+echo "------Training: debug/lego_pointnerf, device $1-------"
+export CUDA_VISIBLE_DEVICES=$1
+python main.py --config=configs/debug/lego_pointnerf.txt

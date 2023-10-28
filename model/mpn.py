@@ -1,101 +1,8 @@
-import torch.nn as nn
 import torch
-
-
-def positional_encoding(tensor, num_encoding_functions=6, include_input=False, log_sampling=True):
-    encoding = [tensor] if include_input else []
-    frequency_bands = None
-    if log_sampling:
-        frequency_bands = 2.0 ** torch.linspace(
-            0.0,
-            num_encoding_functions - 1,
-            num_encoding_functions,
-            dtype=tensor.dtype,
-            device=tensor.device,
-        )
-    else:
-        frequency_bands = torch.linspace(
-            2.0 ** 0.0,
-            2.0 ** (num_encoding_functions - 1),
-            num_encoding_functions,
-            dtype=tensor.dtype,
-            device=tensor.device,
-        )
-
-    for freq in frequency_bands:
-        for func in [torch.sin, torch.cos]:
-            # print(func(tensor * freq).shape)
-            encoding.append(func(tensor * freq))
-
-    # Special case, for no positional encoding
-    return torch.cat(encoding, dim=-1)
-
-
-def fourier_encoding(tensor, choice='xyz', gaussian_scale=10, xyz_size=30, dirs_size=12, sigma=0.4):
-    # https://github.com/tancik/fourier-feature-networks/blob/master/Experiments/3d_simple_nerf.ipynb
-    # raw embeding size -> 256 performs very bad
-    if choice == 'xyz':
-        bvals_xyz = torch.normal(
-            mean=0, std=sigma, size=[xyz_size, 3], device=tensor.device) * gaussian_scale
-        avals_xyz = torch.ones((bvals_xyz.shape[0]), device=tensor.device)
-        ab_xyz = [avals_xyz, bvals_xyz]
-    elif choice == 'dirs':
-        bvals_dirs = torch.normal(
-            mean=0, std=sigma, size=[dirs_size, 3], device=tensor.device) * gaussian_scale
-        avals_dirs = torch.ones((bvals_dirs.shape[0]), device=tensor.device)
-        ab_dirs = [avals_dirs, bvals_dirs]
-    else:
-        raise NotImplementedError
-
-    def input_encoder(x, a, b): return (torch.cat([a * torch.sin(torch.mm((2.*torch.pi*x), b.T)),
-                                                   a * torch.cos(torch.mm((2.*torch.pi*x), b.T))], axis=-1) / torch.norm(a))
-    ab = ab_xyz if choice == 'xyz' else ab_dirs
-    encoding = input_encoder(tensor, *ab)
-    return encoding
-
-
-class MLP(nn.Module):
-
-    def __init__(self, dim, use_fourier):
-        super(MLP, self).__init__()
-
-        # fourier_encoding init
-        self.use_fourier = use_fourier
-
-        # note: 60 is the embedding dimension after positional encoding
-        self.l1 = nn.Linear(60, 256)
-        self.l2 = nn.Linear(256, 256)
-        self.l3 = nn.Linear(280, 256)
-        self.l4 = nn.Linear(256, 128)
-        self.l5 = nn.Linear(128, dim)
-
-        self.ac = nn.ReLU()
-
-    def forward(self, xyz, dirs):
-        if not self.use_fourier:
-            xyz = positional_encoding(xyz, 10)
-            dirs = positional_encoding(dirs, 4)
-        else:
-            xyz = fourier_encoding(xyz, 'xyz')
-            dirs = fourier_encoding(dirs, 'dirs')
-
-        # layer 1
-        x = self.l1(xyz)
-        x = self.ac(x)
-
-        x = self.l2(x)
-        x = self.ac(x)
-
-        x = torch.cat([x, dirs], dim=-1)
-
-        x = self.l3(x)
-        x = self.ac(x)
-
-        x = self.l4(x)
-        x = self.ac(x)
-
-        x = self.l5(x)
-        return x
+import torch.nn as nn
+import numpy as np
+import torch.nn.functional as F
+from torchsummary import summary
 
 
 class GatedBlock(nn.Module):
@@ -168,19 +75,19 @@ class UpsampleBlock(nn.Module):
 
         return output
 
-
-class UNet(nn.Module):
-    def __init__(self, args, out_dim=3, upsample_mode='nearest'):
+# Mask prediction network
+class MPN(nn.Module):
+    def __init__(self, in_dim=3, upsample_mode='nearest', udim='pp', U=4):
         super().__init__()
+        self.U = U
+        out_dim = in_dim
 
-        in_dim = args.dim * args.points_per_pixel
-
-        if args.udim == 'pp':
+        if udim == 'pp':
             filters = [16, 32, 48, 64, 80]
-        elif args.udim == 'npbg':
+        elif udim == 'npbg':
             filters = [64, 128, 256, 512, 1024]
-            filters = [x // 4 for x in filters]
-        elif args.udim == '4xnpbg':
+            filters = [x // 4 for x in filters] # [16, 32, 64, 128, 256]
+        elif udim == '4xnpbg':
             filters = [64, 128, 256, 512, 1024]
         else:
             assert False
@@ -190,7 +97,7 @@ class UNet(nn.Module):
         self.down1 = DownsampleBlock(filters[0], filters[1])
         self.down2 = DownsampleBlock(filters[1], filters[2])
 
-        if args.U == 4:
+        if U == 4:
             self.down3 = DownsampleBlock(filters[2], filters[3])
             self.down4 = DownsampleBlock(filters[3], filters[4])
 
@@ -201,8 +108,8 @@ class UNet(nn.Module):
 
         self.final = nn.Sequential(
             nn.Conv2d(filters[0], out_dim, 1),
+            # nn.GroupNorm(num_groups=1, num_channels=in_dim)
         )
-        self.U = args.U
 
     def forward(self, x):
 
@@ -221,4 +128,29 @@ class UNet(nn.Module):
             up2 = self.up2(down2, down1)
         up1 = self.up1(up2, in64)
 
-        return self.final(up1)
+        final = self.final(up1)  # [1, 3, 224, 224]
+        # final_n = final / final.sum(dim=1, keepdim=True) # perform very well, but prone to triger nan
+        # final_n = torch.sigmoid(final) # perform bad
+        final_n = torch.softmax(final, dim=1)
+        
+
+        # return final_n.mul(x)
+        return final_n
+
+
+if __name__ == '__main__':
+    device = torch.device("cuda")
+    moda_num = 64 
+    batch_size = 1
+    input_size = (batch_size, moda_num, 224, 224)
+
+    data = torch.randn(input_size).to(device)
+    unet = MPN(U=2, udim='pp', in_dim=moda_num).to(device)
+    ret = unet(data)
+    print(f"input size: {data.size()}") # torch.Size([1, 3, 224, 224])
+    print(f"output size: {ret.size()}") # torch.Size([1, 3, 224, 224])
+    # ret = ret.squeeze(0)
+    # normalized_tensor = ret / ret.sum(dim=0, keepdim=True)
+    # assert torch.allclose(normalized_tensor.sum(dim=0), torch.ones((224, 224)).to(device))
+
+    print(summary(unet, (moda_num, 224, 224)))

@@ -8,7 +8,6 @@ import time
 from utils import config_parser
 
 
-
 if __name__ == '__main__':
 
     parser = config_parser()
@@ -32,57 +31,59 @@ if __name__ == '__main__':
     if not os.path.exists(args.frag_path):
         os.makedirs(args.frag_path)
 
-    
-    test_id_path = str(args.radius) + '-idx-' + str(args.H) + '-test.npy'
-    test_z_path = str(args.radius) + '-z-' + str(args.H) + '-test.npy'
-    test_id_path = os.path.join(args.frag_path, test_id_path) 
-    test_z_path = os.path.join(args.frag_path, test_z_path) 
+    test_id_path = str(args.radius) + '-idx-' + str(args.H) + \
+        '-' + str(args.points_per_pixel) + '-test.npy'
+    test_z_path = str(args.radius) + '-z-' + str(args.H) + '-' + \
+        str(args.points_per_pixel) + '-test.npy'
+    test_id_path = os.path.join(args.frag_path, test_id_path)
+    test_z_path = os.path.join(args.frag_path, test_z_path)
 
-    train_id_path = str(args.radius) + '-idx-' + str(args.H) + '-train.npy'
-    train_z_path = str(args.radius) + '-z-' + str(args.H) + '-train.npy'
-    train_id_path = os.path.join(args.frag_path, train_id_path) 
-    train_z_path = os.path.join(args.frag_path, train_z_path) 
-    
+    train_id_path = str(args.radius) + '-idx-' + str(args.H) + \
+        '-' + str(args.points_per_pixel) + '-train.npy'
+    train_z_path = str(args.radius) + '-z-' + str(args.H) + \
+        '-' + str(args.points_per_pixel) + '-train.npy'
+    train_id_path = os.path.join(args.frag_path, train_id_path)
+    train_z_path = os.path.join(args.frag_path, train_z_path)
+
     begin = time.time()
 
     pc = train_set.get_pc()
 
-    # test set 
+    # test set
     z_list = []
     id_list = []
     for i, batch in enumerate(test_loader):
         pose = batch['w2c'][0]
         xyz_ndc = pc.get_ndc(pose)
-        id, zbuf = rasterize(xyz_ndc, (args.H, args.W), args.radius)
+        id, zbuf = rasterize(xyz_ndc, (args.H, args.W),
+                             args.radius, args.points_per_pixel)
         z_list.append(zbuf.float().cpu())
         id_list.append(id.long().cpu())
         if i % 20 == 0:
             print('test', i)
-    z_list = torch.cat(z_list, dim=0).numpy() 
-    id_list = torch.cat(id_list, dim=0).numpy()  
+    z_list = torch.cat(z_list, dim=0).numpy()
+    id_list = torch.cat(id_list, dim=0).numpy()
     print('z_list.shape', z_list.shape)
     np.save(test_z_path, z_list)
     np.save(test_id_path, id_list)
 
-    # train set 
+    # train set
     z_list = []
     id_list = []
     for i, batch in enumerate(train_loader):
         pose = batch['w2c'][0]
         xyz_ndc = pc.get_ndc(pose)
-        id, zbuf = rasterize(xyz_ndc, (args.H, args.W), args.radius)
+        id, zbuf = rasterize(xyz_ndc, (args.H, args.W),
+                             args.radius, args.points_per_pixel)
         z_list.append(zbuf.float().cpu())
         id_list.append(id.long().cpu())
         if i % 20 == 0:
             print('train', i)
-    z_list = torch.cat(z_list, dim=0).numpy() 
-    id_list = torch.cat(id_list, dim=0).numpy() 
-    print('z_list.shape', z_list.shape)  
+    z_list = torch.cat(z_list, dim=0).numpy()
+    id_list = torch.cat(id_list, dim=0).numpy()
+    print('z_list.shape', z_list.shape)
     np.save(train_z_path, z_list)
     np.save(train_id_path, id_list)
 
-
     end = time.time()
     print(f'time cost: {end-begin} s')
-    
-

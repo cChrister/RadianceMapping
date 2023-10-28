@@ -16,6 +16,7 @@ def config_parser():
     parser.add_argument("--datadir", type=str, help='data directory')
     parser.add_argument("--pcdir", type=str, help='point cloud directory')
 
+    parser.add_argument("--points_per_pixel", type=int, help='rasterize points_per_pixel')
 
     parser.add_argument("--epochs", type=int, default=6000, help='train epochs. Keep training until CTRL-C, if less than 0')
     parser.add_argument("--radius", type=float, help='the radius of points when rasterizing')
@@ -48,8 +49,10 @@ def config_parser():
     return parser
 
 def load_fragments(args):
-    train_name = str(args.radius) + '-z-' + str(args.H) + '-train.npy'
-    test_name = str(args.radius) + '-z-' + str(args.H) + '-test.npy'
+    train_name = str(args.radius) + '-z-' + str(args.H) + '-' + \
+        str(args.points_per_pixel) + '-train.npy'
+    test_name = str(args.radius) + '-z-' + str(args.H) + '-' + \
+        str(args.points_per_pixel) +'-test.npy'
     train_path = os.path.join(args.frag_path, train_name) 
     test_path = os.path.join(args.frag_path, test_name)
     train_buf = np.load(train_path)
@@ -58,8 +61,10 @@ def load_fragments(args):
     return torch.tensor(train_buf), torch.tensor(test_buf)
 
 def load_idx(args):
-    train_name = str(args.radius) + '-idx-' + str(args.H) + '-train.npy'
-    test_name = str(args.radius) + '-idx-' + str(args.H) + '-test.npy'
+    train_name = str(args.radius) + '-idx-' + str(args.H) + '-' + \
+        str(args.points_per_pixel) +'-train.npy'
+    test_name = str(args.radius) + '-idx-' + str(args.H) + '-' + \
+        str(args.points_per_pixel) +'-test.npy'
     train_path = os.path.join(args.frag_path, train_name) 
     test_path = os.path.join(args.frag_path, test_name)
     train_buf = np.load(train_path)

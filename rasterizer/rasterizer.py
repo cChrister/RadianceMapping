@@ -10,7 +10,7 @@ def get_bin_size(img_size):
     else:
         return 64
 
-def rasterize(xyz_ndc, hw, radius):
+def rasterize(xyz_ndc, hw, radius, points_per_pixel=1):
     """
     This function implements rasterization.
     Args: 
@@ -23,7 +23,6 @@ def rasterize(xyz_ndc, hw, radius):
     """
 
     N = xyz_ndc.size(0)
-    points_per_pixel = 1
     bin_size = get_bin_size(hw[0])
     cloud_to_packed_first_idx = torch.tensor([0], device=xyz_ndc.device)
     num_points_per_cloud = torch.tensor([N], device=xyz_ndc.device)

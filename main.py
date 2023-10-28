@@ -13,8 +13,8 @@ import lpips
 # flip
 from utils import flip_error_map
 
-# DEBUG = False
-DEBUG = True
+DEBUG = False
+# DEBUG = True
 
 parser = config_parser()
 args = parser.parse_args()
@@ -50,6 +50,8 @@ if __name__ == '__main__':
     def log_string(str):
         stdlog.info(str)
         print(str)
+        
+    log_string(args)
 
     if args.dataset == 'nerf':
         train_set = nerfDataset(args, 'train', 'render')
@@ -71,6 +73,7 @@ if __name__ == '__main__':
     
     # Optimizer
     opt_para = []
+    opt_para.append({"params": renderer.mpn.parameters(), "lr": 1.5e-4})  
     opt_para.append({"params": renderer.unet.parameters(), "lr": args.u_lr})  
     opt_para.append({"params": renderer.mlp.parameters(), "lr": args.mlp_lr})  
     opt = optim.Adam(opt_para)

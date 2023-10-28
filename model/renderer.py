@@ -1,4 +1,5 @@
 from .net import MLP, UNet
+from .mpn import MPN
 import torch
 import torch.nn as nn
 from torchvision import transforms as T
@@ -12,23 +13,26 @@ class Renderer(nn.Module):
         super(Renderer, self).__init__()
         self.mlp = MLP(args.dim, args.use_fourier).to(args.device)
         self.unet = UNet(args).to(args.device)
+        self.mpn =  MPN(U=2, udim='pp', in_dim=args.dim * args.points_per_pixel).to(args.device)
         self.dim = args.dim
 
-        self.use_crop = False
+        # self.use_crop = False
+        self.use_crop = True
 
         if args.xyznear:
             self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(args.scale_min, args.scale_max), ratio=(1., 1.))
         else:
             self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(args.scale_min, args.scale_max), ratio=(1., 1.), interpolation=T.InterpolationMode.NEAREST)
-        
+
         self.pad_w = T.Pad(args.pad, 1., 'constant')
         self.pad_b = T.Pad(args.pad, -1., 'constant')
         
         self.xyznear = args.xyznear # bool
         self.mask = args.pix_mask
         self.train_size = args.train_size
+        self.points_per_pixel= args.points_per_pixel
 
-    def forward(self, zbuf, ray, gt, mask_gt, isTrain, xyz_o):
+    def forward(self, zbufs, ray, gt, mask_gt, isTrain, xyz_o):
         """
         Args:
             zbuf: z-buffer from rasterization (index buffer when xyznear is True)
@@ -45,79 +49,60 @@ class Renderer(nn.Module):
             fea_map: the first three dimensions of the feature map of radiance mapping
         """
 
-        if isTrain:
-
-            o = ray[:self.train_size,:self.train_size,:3] # trainH trainW 3
+        radiance_map = []
+        for i in range(zbufs.shape[-1]):
+            zbuf = zbufs[..., i].unsqueeze(-1) # [H, W, 1]
             
-            if self.use_crop:
-                dirs = self.pad_w(ray[...,3:6].permute(2,0,1).unsqueeze(0)) # 1 3 H W
-                cos = self.pad_w(ray[...,-1:].permute(2,0,1).unsqueeze(0)) # 1 1 H W
-                gt = self.pad_w(gt.permute(2,0,1).unsqueeze(0)) # 1 3 H W
-                zbuf = self.pad_b(zbuf.permute(2,0,1).unsqueeze(0))
+            H, W, _ = zbuf.shape
+            o = ray[..., :3] # [H, W, 1]
+            dirs = ray[...,3:6] # [H, W, 3]
+            cos = ray[...,-1:] # [H, W, 1]
+
+            if isTrain:
+                pix_mask = zbuf > 0.2 # [H, W, 1]
             else:
-                dirs = ray[...,3:6].permute(2,0,1).unsqueeze(0) # 1 3 H W
-                cos = ray[...,-1:].permute(2,0,1).unsqueeze(0) # 1 1 H W
-                gt = gt.permute(2,0,1).unsqueeze(0) # 1 3 H W
-                zbuf = zbuf.permute(2,0,1).unsqueeze(0)
+                pix_mask = zbuf > 0
 
-            if mask_gt is not None:
-                # never pad
-                mask_gt = mask_gt.permute(2,0,1).unsqueeze(0)
-                cat_img = torch.cat([dirs, cos, gt, zbuf, mask_gt], dim=1) 
+            o = o.unsqueeze(-2).expand(H, W, 1, 3)[pix_mask] # occ_point 3
+            dirs = dirs.unsqueeze(-2).expand(H, W, 1, 3)[pix_mask]  # occ_point 3
+            cos = cos.unsqueeze(-2).expand(H, W, 1, 1)[pix_mask]  # occ_point 1
+            zbuf = zbuf.unsqueeze(-1)[pix_mask]  # occ_point 1
+
+            if self.xyznear:
+                xyz_near = o + dirs * zbuf / cos # occ_point 3
             else:
-                cat_img = torch.cat([dirs, cos, gt, zbuf], dim=1) 
+                xyz_near = xyz_o[zbuf.squeeze(-1).long()]
 
-            if self.use_crop:
-                cat_img = self.randomcrop(cat_img)
+            feature = self.mlp(xyz_near, dirs) # occ_point 3
+            feature_map = torch.zeros([H, W, 1, self.dim], device=zbuf.device)
+            feature_map[pix_mask] = feature # [400, 400, 1, self.dim]
+            radiance_map.append(feature_map.permute(2, 3, 0, 1))
 
-            _, _, H, W = cat_img.shape
-            K = 1
 
-            dirs = cat_img[0,:3].permute(1,2,0)
-            cos = cat_img[0,3:4].permute(1,2,0)
-            gt = cat_img[0,4:7].permute(1,2,0)
-            zbuf = cat_img[0,7:8].permute(1,2,0)
-            if mask_gt is not None:
-                mask_gt = cat_img[0,8:].permute(1,2,0)
+        rdmp = torch.cat(radiance_map, dim=1) # [1, self.dim * self.points_per_pixel, H, W]
 
-            pix_mask = zbuf > 0.2  # h w k 
-            
-        else:
+        pred_mask = self.mpn(rdmp) # [1, self.dim * self.points_per_pixel, H, W]
+        # fuse_rdmp = rdmp.mul(pred_mask).sum(dim=1)
+        fuse_rdmp = rdmp.mul(pred_mask) # [1, self.dim * self.points_per_pixel, H, W]
 
-            H, W, K = zbuf.shape  # in fact, k always = 1
-            o = ray[...,:3] # H W 3
-            dirs = ray[...,3:6] # H W 3
-            cos = ray[...,-1:] # H W 1
+        feature_map_view = fuse_rdmp.clone().squeeze(0)[:3, :, :]
+        feature_map_view = torch.sigmoid(feature_map_view.permute(1, 2, 0))
+        ret = self.unet(fuse_rdmp) # [1, 3, H, W]
+        img = ret.squeeze(0).permute(1, 2, 0) # [H, W, 3]
 
-            pix_mask = zbuf > 0  # h w k 
-
-        o = o.unsqueeze(-2).expand(H, W, K, 3)[pix_mask] # occ_point 3
-        dirs = dirs.unsqueeze(-2).expand(H, W, K, 3)[pix_mask]  # occ_point 3
-        cos = cos.unsqueeze(-2).expand(H, W, K, 1)[pix_mask]  # occ_point 1
-        zbuf = zbuf.unsqueeze(-1)[pix_mask]  # occ_point 1
-
-        if self.xyznear:
-            xyz_near = o + dirs * zbuf / cos # occ_point 3
-        else:
-            xyz_near = xyz_o[zbuf.squeeze(-1).long()]
-
-        feature = self.mlp(xyz_near, dirs) # occ_point 3
-
-        feature_map = torch.zeros([H, W, K, self.dim], device=zbuf.device)
-        feature_map[pix_mask] = feature
-
+        return {'img':img, 'gt':gt, 'mask_gt':mask_gt, 'fea_map':feature_map_view}
 
         # Unet
         # sigma H, W, 1, 1
         # color H, W, 1, 8
         # gt h w 3
-        pix_mask = pix_mask.int().unsqueeze(-1).permute(2,3,0,1)# h w 1 1
-        feature_map_view = torch.sigmoid(feature_map.clone().squeeze(-2)[...,:3])
-        feature_map = self.unet(feature_map.permute(2,3,0,1))
-
-        if self.mask:
-            feature_map = feature_map * pix_mask + (1 - pix_mask) # 1 3 h w
-        img = feature_map.squeeze(0).permute(1,2,0)
-
-
-        return {'img':img, 'gt':gt, 'mask_gt':mask_gt, 'fea_map':feature_map_view}
+        # pix_mask = pix_mask.int().unsqueeze(-1).permute(2,3,0,1)# h w 1 1
+        # feature_map_view = torch.sigmoid(feature_map.clone().squeeze(-2)[...,:3])
+        # feature_map = self.unet(feature_map.permute(2,3,0,1)) # [1, 3, 400, 400]
+# 
+        # if self.mask:
+            # feature_map = feature_map * pix_mask + (1 - pix_mask) # 1 3 h w
+        # img = feature_map.squeeze(0).permute(1,2,0)
+# 
+# 
+        # return {'img':img, 'gt':gt, 'mask_gt':mask_gt, 'fea_map':feature_map_view}
