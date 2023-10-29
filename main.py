@@ -178,7 +178,6 @@ if __name__ == '__main__':
         lr_decay(opt)
         t2 = time.time()
         training_time += (t2 - t1) / 3600
-        log_string(f'Training_time: {training_time:{4}.{4}} hours.')
 
         # test
         if epoch % args.test_freq == 0:
@@ -268,6 +267,7 @@ if __name__ == '__main__':
                 torch.save(renderer.state_dict(), ckpt)
 
             log_string('------------------------------------------------')
+            log_string(f'Training_time: {training_time:{4}.{4}} hours.')
             log_string(f'Test phrase! Epoch:{epoch}, it: {it}')
             log_string(
                 f'Current test metric: PSNR: {test_psnr}, LPIPS: {test_lpips}, SSIM: {test_ssim}')
