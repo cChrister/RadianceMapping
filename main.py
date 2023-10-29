@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 import torch
@@ -21,17 +22,20 @@ args = parser.parse_args()
 
 set_seed(42)
 log_dir = './debug_logs/' if DEBUG else './logs/'
-back_path = os.path.join(log_dir, time.strftime("%y%m%d-%H%M%S-" + f'{args.expname}-{args.H}-{args.train_size}-{args.U}-{args.udim}-{args.vgg_l}-pix{args.pix_mask}-xyznear{args.xyznear}-{args.scale_min}-{args.scale_max}'))
+back_path = os.path.join(log_dir, time.strftime(
+    "%y%m%d-%H%M%S-" + f'{args.expname}-{args.H}-{args.train_size}-{args.U}-{args.udim}-{args.vgg_l}-pix{args.pix_mask}-xyznear{args.xyznear}-{args.scale_min}-{args.scale_max}'))
 os.makedirs(back_path)
 backup_terminal_outputs(back_path)
-backup_code(back_path, ignored_in_current_folder=['debug_logs', 'back','pointcloud','data','.git','pytorch_rasterizer.egg-info','build','logs','__pycache__', '.sh'])
+backup_code(back_path, ignored_in_current_folder=[
+            'debug_logs', 'back', 'pointcloud', 'data', '.git', 'pytorch_rasterizer.egg-info', 'build', 'logs', '__pycache__', '.sh'])
 print(back_path)
 logger = SummaryWriter(back_path)
 video_path = os.path.join(back_path, 'video')
 os.makedirs(video_path)
 
-import logging
 formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+
+
 def setup_logger(name, log_file, level=logging.INFO):
     """To setup as many loggers as you want"""
 
@@ -44,13 +48,14 @@ def setup_logger(name, log_file, level=logging.INFO):
 
     return logger
 
+
 stdlog = setup_logger('bpcr', os.path.join(back_path, 'metric.txt'))
 
 if __name__ == '__main__':
     def log_string(str):
         stdlog.info(str)
         print(str)
-        
+
     log_string(args)
 
     if args.dataset == 'nerf':
@@ -65,37 +70,43 @@ if __name__ == '__main__':
     else:
         assert False
 
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=1, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(
+        train_set, batch_size=1, shuffle=True)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=1)
-    
+
     renderer = Renderer(args)
     edge = args.edge_mask
-    
+
     # Optimizer
     opt_para = []
-    opt_para.append({"params": renderer.mpn.parameters(), "lr": 1.5e-4})  
-    opt_para.append({"params": renderer.unet.parameters(), "lr": args.u_lr})  
-    opt_para.append({"params": renderer.mlp.parameters(), "lr": args.mlp_lr})  
+    opt_para.append({"params": renderer.mpn.parameters(), "lr": 1.5e-4})
+    opt_para.append({"params": renderer.unet.parameters(), "lr": args.u_lr})
+    opt_para.append({"params": renderer.mlp.parameters(), "lr": args.mlp_lr})
     opt = optim.Adam(opt_para)
 
     fn_psnr = PSNR().to(args.device)
     fn_lpips = LPIPS('vgg').to(args.device)
     loss_lpips = lpips.LPIPS(net='vgg').to(args.device)
     fn_ssim = SSIM().to(args.device)
-    
+
     # load buf
     if args.xyznear:
         train_buf, test_buf = load_fragments(args)  # cpu 100 800 800 k
         xyz_o = None
     else:
         train_buf, test_buf = load_idx(args)  # cpu 100 800 800 k
-        xyz_o = train_set.get_pc().xyz # n 3
-    print('buf shape', train_buf.shape)
-    
+        xyz_o = train_set.get_pc().xyz  # n 3
+
+    log_string(f'zbuf shape: {train_buf.shape}')
+
     it = 0
     epoch = 0
-    best_psnr = 0
     training_time = 0.
+
+    best_lpips = 1
+    best_psnr = 0
+    best_ssim = 0
+
     while True:
         renderer.train()
         t1 = time.time()
@@ -103,19 +114,21 @@ if __name__ == '__main__':
         for batch in train_loader:
             it += 1
             idx = int(batch['idx'][0])
-            ray = batch['ray'][0] # h w 7
-            img_gt = batch['rgb'][0] # h w 3
+            ray = batch['ray'][0]  # h w 7
+            img_gt = batch['rgb'][0]  # h w 3
             if args.dataset == 'dtu':
-                mask_gt = batch['mask'][0][..., :1] # h w 1
+                mask_gt = batch['mask'][0][..., :1]  # h w 1
             else:
                 mask_gt = None
 
-            zbuf = train_buf[idx].to(args.device) # h w 1
+            zbuf = train_buf[idx].to(args.device)  # h w 1
 
-            output = renderer(zbuf, ray, img_gt, mask_gt, isTrain=True, xyz_o=xyz_o)
+            output = renderer(zbuf, ray, img_gt, mask_gt,
+                              isTrain=True, xyz_o=xyz_o)
 
             if args.dataset == 'dtu':
-                img_pre = output['img'] * output['mask_gt'] + 1 - output['mask_gt']
+                img_pre = output['img'] * \
+                    output['mask_gt'] + 1 - output['mask_gt']
             else:
                 img_pre = output['img']
 
@@ -131,10 +144,11 @@ if __name__ == '__main__':
             loss_l2 = torch.mean((img_pre - output['gt']) ** 2)
 
             if args.vgg_l > 0:
-                loss_vgg = loss_lpips(img_pre.permute(2,0,1).unsqueeze(0), output['gt'].permute(2,0,1).unsqueeze(0), normalize=True)
+                loss_vgg = loss_lpips(img_pre.permute(2, 0, 1).unsqueeze(
+                    0), output['gt'].permute(2, 0, 1).unsqueeze(0), normalize=True)
                 loss = loss_l2 + args.vgg_l * loss_vgg
             else:
-                loss = loss_l2 
+                loss = loss_l2
 
             loss.backward()
             opt.step()
@@ -145,20 +159,26 @@ if __name__ == '__main__':
 
             if it % 200 == 0:
                 if args.vgg_l > 0:
-                    print('[{}]-it:{}, psnr:{:.4f}, l2_loss:{:.4f}, vgg_loss:{:.4f}'.format(back_path, it, psnr.item(), loss_l2.item(), loss_vgg.item()))
+                    print('[{}]-it:{}, psnr:{:.4f}, l2_loss:{:.4f}, vgg_loss:{:.4f}'.format(
+                        back_path, it, psnr.item(), loss_l2.item(), loss_vgg.item()))
                 else:
-                    print('[{}]-it:{}, psnr:{:.4f}, l2_loss:{:.4f}'.format(back_path, it, psnr.item(), loss.item()))
-                img_pre[img_pre>1] = 1.
-                img_pre[img_pre<0] = 0.
-                logger.add_image('train/fea', output['fea_map'], global_step=it, dataformats='HWC')
-                logger.add_image('train/predict', img_pre, global_step=it, dataformats='HWC')
-                logger.add_image('train/gtimg', output['gt'], global_step=it, dataformats='HWC')
-                logger.add_image('train/flip_error',  flip_error_map(output['gt'], img_pre)  , global_step=it, dataformats='HWC')
+                    print('[{}]-it:{}, psnr:{:.4f}, l2_loss:{:.4f}'.format(back_path,
+                          it, psnr.item(), loss.item()))
+                img_pre[img_pre > 1] = 1.
+                img_pre[img_pre < 0] = 0.
+                logger.add_image(
+                    'train/fea', output['fea_map'], global_step=it, dataformats='HWC')
+                logger.add_image('train/predict', img_pre,
+                                 global_step=it, dataformats='HWC')
+                logger.add_image(
+                    'train/gtimg', output['gt'], global_step=it, dataformats='HWC')
+                logger.add_image('train/flip_error',  flip_error_map(
+                    output['gt'], img_pre), global_step=it, dataformats='HWC')
 
         lr_decay(opt)
         t2 = time.time()
         training_time += (t2 - t1) / 3600
-
+        log_string(f'Training_time: {training_time:{4}.{4}} hours.')
 
         # test
         if epoch % args.test_freq == 0:
@@ -178,29 +198,34 @@ if __name__ == '__main__':
                     ray = batch['ray'][0]
                     img_gt = batch['rgb'][0]
                     zbuf = test_buf[idx].to(args.device)
-                    output = renderer(zbuf, ray, gt=None, mask_gt=None, isTrain=False, xyz_o=xyz_o)
+                    output = renderer(zbuf, ray, gt=None,
+                                      mask_gt=None, isTrain=False, xyz_o=xyz_o)
 
                     if args.dataset == 'dtu':
                         mask_gt = batch['mask'][0][..., :1]
-                        img_pre = output['img'].detach()[...,:3] * mask_gt + 1 - mask_gt
+                        img_pre = output['img'].detach(
+                        )[..., :3] * mask_gt + 1 - mask_gt
                     else:
                         img_pre = output['img']
 
-                    img_pre[img_pre>1] = 1.
-                    img_pre[img_pre<0] = 0.
-                    
+                    img_pre[img_pre > 1] = 1.
+                    img_pre[img_pre < 0] = 0.
+
                     # save test 200 images
                     # logger.add_image('test/gtimg', img_gt, global_step=i, dataformats='HWC')
                     # logger.add_image('test/predict', img_pre, global_step=i, dataformats='HWC')
                     # logger.add_image('test/flip_error',  flip_error_map(img_gt, img_pre)  , global_step=i, dataformats='HWC')
- 
-                    img_pre = img_pre.permute(2,0,1).unsqueeze(0)
-                    img_gt = img_gt.permute(2,0,1).unsqueeze(0)
+
+                    img_pre = img_pre.permute(2, 0, 1).unsqueeze(0)
+                    img_gt = img_gt.permute(2, 0, 1).unsqueeze(0)
 
                     if edge > 0:
-                        psnr = fn_psnr(img_pre[...,edge:-edge,edge:-edge], img_gt[...,edge:-edge,edge:-edge])
-                        ssim = fn_ssim(img_pre[...,edge:-edge,edge:-edge], img_gt[...,edge:-edge,edge:-edge])
-                        lpips_ = fn_lpips(img_pre[...,edge:-edge,edge:-edge], img_gt[...,edge:-edge,edge:-edge])
+                        psnr = fn_psnr(
+                            img_pre[..., edge:-edge, edge:-edge], img_gt[..., edge:-edge, edge:-edge])
+                        ssim = fn_ssim(
+                            img_pre[..., edge:-edge, edge:-edge], img_gt[..., edge:-edge, edge:-edge])
+                        lpips_ = fn_lpips(
+                            img_pre[..., edge:-edge, edge:-edge], img_gt[..., edge:-edge, edge:-edge])
                     else:
                         psnr = fn_psnr(img_pre, img_gt)
                         ssim = fn_ssim(img_pre, img_gt)
@@ -209,7 +234,6 @@ if __name__ == '__main__':
                     test_psnr += psnr.item()
                     test_ssim += ssim.item()
 
-                    
                     # save at logs/*/video/
                     # if epoch % args.vid_freq == 0:
                     #     img_pre = img_pre.squeeze(0).permute(1,2,0)
@@ -224,18 +248,36 @@ if __name__ == '__main__':
             logger.add_scalar('test/psnr', test_psnr, it)
             logger.add_scalar('test/lpips', test_lpips, it)
             logger.add_scalar('test/ssim', test_ssim, it)
-            log_string(f'test_PSNR: {test_psnr}, it: {it}')
-            log_string(f'test_lpips: {test_lpips}, it: {it}')
-            log_string(f'test_ssim: {test_ssim}, it: {it}')
 
             if test_psnr > best_psnr:
                 best_psnr = test_psnr
                 ckpt = os.path.join(back_path, 'model.pkl')
+                print(f'update PSNR')
                 torch.save(renderer.state_dict(), ckpt)
-                log_string(f'Model Saved! Best PSNR: {best_psnr}')
-            log_string(f'Test PSNR! Epoch:{epoch} Training_time: {training_time:{4}.{4}} hours, current: {test_psnr:{4}.{4}}')
+
+            if test_lpips < best_lpips:
+                best_lpips = test_lpips
+                ckpt = os.path.join(back_path, 'model.pkl')
+                print(f'update lpips')
+                torch.save(renderer.state_dict(), ckpt)
+
+            if test_ssim > best_ssim:
+                best_ssim = test_ssim
+                ckpt = os.path.join(back_path, 'model.pkl')
+                print(f'update ssim')
+                torch.save(renderer.state_dict(), ckpt)
+
+            log_string('------------------------------------------------')
+            log_string(f'Test phrase! Epoch:{epoch}, it: {it}')
+            log_string(
+                f'Current test metric: PSNR: {test_psnr}, LPIPS: {test_lpips}, SSIM: {test_ssim}')
+            log_string(
+                f'Best test metric: PSNR: {best_psnr}, LPIPS: {best_lpips}, SSIM: {best_ssim}')
+            log_string('------------------------------------------------')
 
             if (args.epochs > 0) and (args.epochs <= epoch):
-                print(f"\nReach preset target epoch: {args.epochs}, current epoch: {epoch}")
-                print(f"Current test psnr {test_psnr:{4}.{4}}, Best psnr: {best_psnr:{4}.{4}}, \n")
+                print(
+                    f"\nReach preset target epoch: {args.epochs}, current epoch: {epoch}")
+                print(
+                    f"Current test psnr {test_psnr:{4}.{4}}, Best psnr: {best_psnr:{4}.{4}}, \n")
                 exit(0)
