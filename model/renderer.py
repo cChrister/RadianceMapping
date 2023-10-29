@@ -16,8 +16,8 @@ class Renderer(nn.Module):
         self.mpn =  MPN(U=2, udim='pp', in_dim=args.dim * args.points_per_pixel).to(args.device)
         self.dim = args.dim
 
-        # self.use_crop = False
-        self.use_crop = True
+        self.use_crop = False # better performance, 6GB memory
+        # self.use_crop = True # [BUG] 33 GB memory
 
         if args.xyznear:
             self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(args.scale_min, args.scale_max), ratio=(1., 1.))
