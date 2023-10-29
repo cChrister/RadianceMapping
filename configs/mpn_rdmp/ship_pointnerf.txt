@@ -1,0 +1,34 @@
+expname = ship
+device = 'cuda:0'
+logdir = ./logs
+datadir = ./data/nerf_synthetic/ship
+pcdir = ./data/pc/pointnerf/ship_pointnerf.ply
+dataset = nerf
+
+radius = 0.005
+frag_path = './data/fragments/ship_pointnerf'
+H = 800
+W = 800
+train_size = 800
+
+dim = 4
+
+mlp_lr = 5e-4
+u_lr = 1.5e-4
+
+scale_max = 1.
+scale_min = 0.111
+
+pad = 100
+
+epochs = 2000
+points_per_pixel = 4
+
+xyznear
+
+U = 4
+udim = npbg
+vgg_l = 0.01
+edge_mask = 0
+test_freq = 10
+vid_freq = 30
