@@ -17,6 +17,7 @@ def config_parser():
     parser.add_argument("--pcdir", type=str, help='point cloud directory')
 
     parser.add_argument("--points_per_pixel", type=int, default=8, help='rasterize points_per_pixel')
+    parser.add_argument("--use_crop", action='store_true', default=False, help='whether crop when training')
 
     parser.add_argument("--epochs", type=int, default=6000, help='train epochs. Keep training until CTRL-C, if less than 0')
     parser.add_argument("--radius", type=float, help='the radius of points when rasterizing')
@@ -28,9 +29,7 @@ def config_parser():
     parser.add_argument("--device", type=str)
     parser.add_argument("--scale_min", type=float, help='the minimum area ratio when random resize and crop')
     parser.add_argument("--scale_max", type=float, help='the maximum area ratio when random resize and crop')
-    
 
-    # parser.add_argument("--group_num", type=int)
     parser.add_argument("--dim", type=int, default=8, help='feature dimension of radiance mapping output')
     parser.add_argument("--u_lr", type=float, help='learning rate of unet')
     parser.add_argument("--mlp_lr", type=float, help='learning rate of mlp')

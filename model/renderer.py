@@ -16,8 +16,7 @@ class Renderer(nn.Module):
         self.mpn =  MPN(U=2, udim='pp', in_dim=args.dim * args.points_per_pixel).to(args.device)
         self.dim = args.dim
 
-        self.use_crop = False # better performance, 6GB memory
-        # self.use_crop = True # [BUG] 33 GB memory
+        self.use_crop = args.use_crop
 
         if args.xyznear:
             self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(args.scale_min, args.scale_max), ratio=(1., 1.))
@@ -50,45 +49,53 @@ class Renderer(nn.Module):
         """
 
         H, W, _ = zbufs.shape # [H, W, points_per_pixel]
+        o = ray[...,:3] # [H, W, 1]
+        dirs = ray[...,3:6] # [H, W, 3]
+        cos = ray[...,-1:] # [H, W, 1]
         
+        _o = o.unsqueeze(-2).expand(H, W, 1, 3)
+        _dirs = dirs.unsqueeze(-2).expand(H, W, 1, 3)
+        _cos = cos.unsqueeze(-2).expand(H, W, 1, 3)
+
         if self.use_crop and isTrain:
             ray_pad = self.pad_w(ray.permute(2, 0, 1).unsqueeze(0))
             gt_pad = self.pad_w(gt.permute(2, 0, 1).unsqueeze(0))
             zbufs_pad = self.pad_b(zbufs.permute(2, 0, 1).unsqueeze(0))
             
             cat_img = torch.cat([ray_pad, gt_pad, zbufs_pad], dim=1)
-            cat_img = self.randomcrop(cat_img)
-            o_crop = cat_img[0, :3].permute(1, 2, 0)
+            cat_img = self.randomcrop(cat_img) # [1, _, train_size, train_size]
+            _, _, H, W = cat_img.shape
+            # o_crop = cat_img[0, :3].permute(1, 2, 0)
             dirs_crop = cat_img[0, 3:6].permute(1, 2, 0)
             cos_crop = cat_img[0, 6:7].permute(1, 2, 0)
             gt_crop = cat_img[0, 7:10].permute(1, 2, 0)
             gt = gt_crop
             zbufs_crop = cat_img[0, 10:].permute(1, 2, 0)
 
+            zbufs = zbufs_crop.clone()
+            _o = ray[:H,:W,:3].unsqueeze(-2)
+            _dirs = dirs_crop.clone().unsqueeze(-2).expand(H, W, 1, 3)
+            _cos = cos_crop.clone().unsqueeze(-2).expand(H, W, 1, 3)
+
+            # [TODO] why this happend
+            # if comment two lines, GPU memory increased dramatically more than 20GB
+            # if not 6-7GB
+            del cat_img, ray_pad, gt_pad, zbufs_pad
+            torch.cuda.empty_cache()
+
 
         radiance_map = []
         for i in range(zbufs.shape[-1]):
-            
-            o = ray[..., :3] # [H, W, 1]
-            
-            if self.use_crop and isTrain:
-                zbuf = zbufs_crop[..., i].unsqueeze(-1) # [H, W, 1]
-                dirs = dirs_crop
-                cos = cos_crop
-            else:
-                zbuf = zbufs[..., i].unsqueeze(-1) # [H, W, 1]
-                dirs = ray[...,3:6] # [H, W, 3]
-                cos = ray[...,-1:] # [H, W, 1]
-
+            zbuf = zbufs[..., i].unsqueeze(-1) # [H, W, 1]
 
             if isTrain:
                 pix_mask = zbuf > 0.2 # [H, W, 1]
             else:
                 pix_mask = zbuf > 0
 
-            o = o.unsqueeze(-2).expand(H, W, 1, 3)[pix_mask] # occ_point 3
-            dirs = dirs.unsqueeze(-2).expand(H, W, 1, 3)[pix_mask]  # occ_point 3
-            cos = cos.unsqueeze(-2).expand(H, W, 1, 1)[pix_mask]  # occ_point 1
+            o = _o[pix_mask] # occ_point 3
+            dirs = _dirs[pix_mask]  # occ_point 3
+            cos = _cos[pix_mask]  # occ_point 1
             zbuf = zbuf.unsqueeze(-1)[pix_mask]  # occ_point 1
 
             if self.xyznear:
@@ -105,32 +112,23 @@ class Renderer(nn.Module):
         rdmp = torch.cat(radiance_map, dim=1) # [1, self.dim * self.points_per_pixel, H, W]
 
         pred_mask = self.mpn(rdmp) # [1, self.dim * self.points_per_pixel, H, W]
-        # fuse_rdmp = rdmp.mul(pred_mask).sum(dim=1)
+        
         fuse_rdmp = rdmp.mul(pred_mask) # [1, self.dim * self.points_per_pixel, H, W]
+        # fuse_rdmp = rdmp.mul(pred_mask).sum(dim=1).unsqueeze(1) # [1, 1, H, W]
+        # fuse_rdmp = fuse_rdmp.expand(1, self.dim, H, W)
 
-        feature_map_view = fuse_rdmp.clone().squeeze(0)[:3, :, :]
-        feature_map_view = torch.sigmoid(feature_map_view.permute(1, 2, 0))
+        # feature_map_view = fuse_rdmp.clone().squeeze(0)[:3, :, :]
+        # feature_map_view = torch.sigmoid(feature_map_view.permute(1, 2, 0))
+
         ret = self.unet(fuse_rdmp) # [1, 3, H, W]
 
-        pix_mask = pix_mask.int().unsqueeze(-1).permute(2,3,0,1) # [1, 1, H, W]
-        if self.mask:
+        if self.mask and (not isTrain):
+            pix_mask = pix_mask.int().unsqueeze(-1).permute(2,3,0,1) # [1, 1, H, W]
             ret = ret * pix_mask + (1 - pix_mask) # 1 3 h w
+
 
         img = ret.squeeze(0).permute(1, 2, 0) # [H, W, 3]
 
-        return {'img':img, 'gt':gt, 'mask_gt':mask_gt, 'fea_map':feature_map_view}
-
-        # Unet
-        # sigma H, W, 1, 1
-        # color H, W, 1, 8
-        # gt h w 3
-        # pix_mask = pix_mask.int().unsqueeze(-1).permute(2,3,0,1)# h w 1 1
-        # feature_map_view = torch.sigmoid(feature_map.clone().squeeze(-2)[...,:3])
-        # feature_map = self.unet(feature_map.permute(2,3,0,1)) # [1, 3, 400, 400]
-# 
-        # if self.mask:
-            # feature_map = feature_map * pix_mask + (1 - pix_mask) # 1 3 h w
-        # img = feature_map.squeeze(0).permute(1,2,0)
-# 
-# 
         # return {'img':img, 'gt':gt, 'mask_gt':mask_gt, 'fea_map':feature_map_view}
+        return {'img':img, 'gt':gt, 'mask_gt':mask_gt}
+

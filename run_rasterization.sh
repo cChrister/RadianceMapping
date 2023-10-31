@@ -6,7 +6,7 @@
 # Created Time: Tue 07 Mar 2023 11:10:38 PM CST
 # Brief: 
 #########################################################################
-echo "------Rasterization: $1, device $2---------"
-export CUDA_VISIBLE_DEVICES=$2
-python run_rasterize.py --config=configs/$1.txt
+echo "------Rasterization:, device $1---------"
+export CUDA_VISIBLE_DEVICES=$1
+python run_rasterize.py --config=configs/debug/lego_pointnerf.txt
 

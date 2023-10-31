@@ -13,9 +13,12 @@ from piqa import SSIM, LPIPS, PSNR
 import lpips
 # flip
 from utils import flip_error_map
+# disable vgg warning
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
-DEBUG = False
-# DEBUG = True
+# DEBUG = False
+DEBUG = True
 
 parser = config_parser()
 args = parser.parse_args()
@@ -23,11 +26,11 @@ args = parser.parse_args()
 set_seed(42)
 log_dir = './debug_logs/' if DEBUG else './logs/'
 back_path = os.path.join(log_dir, time.strftime(
-    "%y%m%d-%H%M%S-" + f'{args.expname}-{args.H}-{args.train_size}-{args.U}-{args.udim}-{args.vgg_l}-pix{args.pix_mask}-xyznear{args.xyznear}-{args.scale_min}-{args.scale_max}'))
+    "%y%m%d-%H%M%S-" + f'{args.expname}-{args.H}-crop{args.train_size}-dim{args.dim}-zbuf{args.points_per_pixel}-pix{args.pix_mask}-xyznear{args.xyznear}'))
 os.makedirs(back_path)
 backup_terminal_outputs(back_path)
 backup_code(back_path, ignored_in_current_folder=[
-            'debug_logs', 'back', 'pointcloud', 'data', '.git', 'pytorch_rasterizer.egg-info', 'build', 'logs', '__pycache__', '.sh'])
+            'debug_logs', 'back', 'pointcloud', 'data', '.git', 'pytorch_rasterizer.egg-info', 'build', 'logs', '__pycache__', '.sh', 'dev_scripts'])
 print(back_path)
 logger = SummaryWriter(back_path)
 video_path = os.path.join(back_path, 'video')
@@ -107,6 +110,7 @@ if __name__ == '__main__':
     best_psnr = 0
     best_ssim = 0
 
+    log_string(f"\n 🚀[START Training]\n")
     while True:
         renderer.train()
         t1 = time.time()
@@ -166,8 +170,8 @@ if __name__ == '__main__':
                           it, psnr.item(), loss.item()))
                 img_pre[img_pre > 1] = 1.
                 img_pre[img_pre < 0] = 0.
-                logger.add_image(
-                    'train/fea', output['fea_map'], global_step=it, dataformats='HWC')
+                # logger.add_image(
+                #     'train/fea', output['fea_map'], global_step=it, dataformats='HWC')
                 logger.add_image('train/predict', img_pre,
                                  global_step=it, dataformats='HWC')
                 logger.add_image(
@@ -234,12 +238,12 @@ if __name__ == '__main__':
                     test_ssim += ssim.item()
 
                     # save at logs/*/video/
-                    # if epoch % args.vid_freq == 0:
-                    #     img_pre = img_pre.squeeze(0).permute(1,2,0)
-                    #     img_pre = img_pre.cpu().numpy()
-                    #     plt.imsave(os.path.join(video_it_path, str(i).rjust(3,'0') + '.png'), img_pre)
+                    if epoch % args.vid_freq == 0:
+                        img_pre = img_pre.squeeze(0).permute(1,2,0)
+                        img_pre = img_pre.cpu().numpy()
+                        plt.imsave(os.path.join(video_it_path, str(i).rjust(3,'0') + '.png'), img_pre)
 
-                    # torch.cuda.empty_cache()
+                    torch.cuda.empty_cache()
 
             test_lpips = test_lpips / len(test_set)
             test_psnr = test_psnr / len(test_set)
