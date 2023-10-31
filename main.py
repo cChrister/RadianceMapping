@@ -110,7 +110,7 @@ if __name__ == '__main__':
     best_psnr = 0
     best_ssim = 0
 
-    log_string(f"\n 🚀[START Training]\n")
+    log_string(f"\n 🚀 [START Training]\n")
     while True:
         renderer.train()
         t1 = time.time()
@@ -253,21 +253,21 @@ if __name__ == '__main__':
             logger.add_scalar('test/ssim', test_ssim, it)
 
             if test_psnr > best_psnr:
+                print(f'update PSNR, better: {test_psnr-best_psnr}')
                 best_psnr = test_psnr
                 ckpt = os.path.join(back_path, 'model.pkl')
-                print(f'update PSNR')
                 torch.save(renderer.state_dict(), ckpt)
 
             if test_lpips < best_lpips:
+                print(f'update lpips, better: {best_lpips-test_lpips}')
                 best_lpips = test_lpips
                 ckpt = os.path.join(back_path, 'model.pkl')
-                print(f'update lpips')
                 torch.save(renderer.state_dict(), ckpt)
 
             if test_ssim > best_ssim:
+                print(f'update SSIM, better: {test_ssim-best_ssim}')
                 best_ssim = test_ssim
                 ckpt = os.path.join(back_path, 'model.pkl')
-                print(f'update ssim')
                 torch.save(renderer.state_dict(), ckpt)
 
             log_string('------------------------------------------------')
