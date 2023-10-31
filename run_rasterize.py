@@ -5,6 +5,7 @@ from dataset.dataset import nerfDataset, ScanDataset, DTUDataset
 import os
 import numpy as np
 import time
+from tqdm import tqdm
 from utils import config_parser
 
 
@@ -45,22 +46,25 @@ if __name__ == '__main__':
     train_id_path = os.path.join(args.frag_path, train_id_path)
     train_z_path = os.path.join(args.frag_path, train_z_path)
 
-    begin = time.time()
 
     pc = train_set.get_pc()
 
     # test set
+    begin = time.time()
     z_list = []
     id_list = []
-    for i, batch in enumerate(test_loader):
+    for i, batch in tqdm(enumerate(test_loader), desc='test', unit=' frames'):
+    # for i, batch in enumerate(test_loader):
         pose = batch['w2c'][0]
         xyz_ndc = pc.get_ndc(pose)
         id, zbuf = rasterize(xyz_ndc, (args.H, args.W),
                              args.radius, args.points_per_pixel)
         z_list.append(zbuf.float().cpu())
         id_list.append(id.long().cpu())
-        if i % 20 == 0:
-            print('test', i)
+        # if i % 20 == 0:
+            # print('test', i)
+    end = time.time()
+    print(f'time cost: {end-begin} s')
     z_list = torch.cat(z_list, dim=0).numpy()
     id_list = torch.cat(id_list, dim=0).numpy()
     print('z_list.shape', z_list.shape)
@@ -68,22 +72,25 @@ if __name__ == '__main__':
     np.save(test_id_path, id_list)
 
     # train set
+    begin = time.time()
     z_list = []
     id_list = []
-    for i, batch in enumerate(train_loader):
+    for i, batch in tqdm(enumerate(train_loader), desc='train ', unit=' frames'):
+    # for i, batch in enumerate(train_loader):
         pose = batch['w2c'][0]
         xyz_ndc = pc.get_ndc(pose)
         id, zbuf = rasterize(xyz_ndc, (args.H, args.W),
                              args.radius, args.points_per_pixel)
         z_list.append(zbuf.float().cpu())
         id_list.append(id.long().cpu())
-        if i % 20 == 0:
-            print('train', i)
+        # if i % 20 == 0:
+            # print('train', i)
+    end = time.time()
+    print(f'time cost: {end-begin} s')
     z_list = torch.cat(z_list, dim=0).numpy()
     id_list = torch.cat(id_list, dim=0).numpy()
     print('z_list.shape', z_list.shape)
     np.save(train_z_path, z_list)
     np.save(train_id_path, id_list)
 
-    end = time.time()
-    print(f'time cost: {end-begin} s')
+    
