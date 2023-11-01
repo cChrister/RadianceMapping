@@ -24,6 +24,7 @@ pad = 100
 epochs = 1500
 points_per_pixel = 8
 
+use_crop
 xyznear
 
 U = 4
