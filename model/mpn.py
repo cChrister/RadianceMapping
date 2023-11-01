@@ -142,15 +142,14 @@ if __name__ == '__main__':
     device = torch.device("cuda")
     moda_num = 64 
     batch_size = 1
-    input_size = (batch_size, moda_num, 224, 224)
+    H = 800
+    W = 800
+    input_size = (batch_size, moda_num, H, W)
 
     data = torch.randn(input_size).to(device)
     unet = MPN(U=2, udim='pp', in_dim=moda_num).to(device)
     ret = unet(data)
     print(f"input size: {data.size()}") # torch.Size([1, 3, 224, 224])
     print(f"output size: {ret.size()}") # torch.Size([1, 3, 224, 224])
-    # ret = ret.squeeze(0)
-    # normalized_tensor = ret / ret.sum(dim=0, keepdim=True)
-    # assert torch.allclose(normalized_tensor.sum(dim=0), torch.ones((224, 224)).to(device))
 
-    print(summary(unet, (moda_num, 224, 224)))
+    print(summary(unet, input_size[1:]))
