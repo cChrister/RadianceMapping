@@ -138,7 +138,7 @@ if __name__ == '__main__':
 
             if output['gt'].min() == 1:
                 print('None img, skip')
-                # torch.cuda.empty_cache()
+                torch.cuda.empty_cache()
                 continue
 
             opt.zero_grad()
@@ -178,6 +178,9 @@ if __name__ == '__main__':
                     'train/gtimg', output['gt'], global_step=it, dataformats='HWC')
                 logger.add_image('train/flip_error',  flip_error_map(
                     output['gt'], img_pre), global_step=it, dataformats='HWC')
+
+            del output
+            torch.cuda.empty_cache()
 
         lr_decay(opt)
         t2 = time.time()
@@ -239,9 +242,10 @@ if __name__ == '__main__':
 
                     # save at logs/*/video/
                     if epoch % args.vid_freq == 0:
-                        img_pre = img_pre.squeeze(0).permute(1,2,0)
+                        img_pre = img_pre.squeeze(0).permute(1, 2, 0)
                         img_pre = img_pre.cpu().numpy()
-                        plt.imsave(os.path.join(video_it_path, str(i).rjust(3,'0') + '.png'), img_pre)
+                        plt.imsave(os.path.join(video_it_path, str(
+                            i).rjust(3, '0') + '.png'), img_pre)
 
                     torch.cuda.empty_cache()
 

@@ -3,6 +3,10 @@ from .mpn import MPN
 import torch
 import torch.nn as nn
 from torchvision import transforms as T
+# profile
+from torchsummary import summary
+from utils import config_parser
+
 
 class Renderer(nn.Module):
     """
@@ -111,6 +115,9 @@ class Renderer(nn.Module):
 
         rdmp = torch.cat(radiance_map, dim=1) # [1, self.dim * self.points_per_pixel, H, W]
 
+        del radiance_map
+        torch.cuda.empty_cache()
+
         pred_mask = self.mpn(rdmp) # [1, self.dim * self.points_per_pixel, H, W]
         
         fuse_rdmp = rdmp.mul(pred_mask) # [1, self.dim * self.points_per_pixel, H, W]
@@ -132,3 +139,8 @@ class Renderer(nn.Module):
         # return {'img':img, 'gt':gt, 'mask_gt':mask_gt, 'fea_map':feature_map_view}
         return {'img':img, 'gt':gt, 'mask_gt':mask_gt}
 
+if __name__ == '__main__':
+    device = torch.device("cuda")
+    parser = config_parser()
+    args = parser.parse_args()
+    print(args)
