@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+from torchsummary import summary
 
 
 def positional_encoding(tensor, num_encoding_functions=6, include_input=False, log_sampling=True):
@@ -222,3 +223,25 @@ class UNet(nn.Module):
         up1 = self.up1(up2, in64)
 
         return self.final(up1)
+
+if __name__ == '__main__':
+    device = torch.device("cuda")
+    # moda_num = 64 
+    # batch_size = 1
+    # H = 800
+    # W = 800
+    # input_size = (batch_size, moda_num, H, W)
+
+    # ----------------------------------------------------------------
+    # Total params: 187,272
+    # Trainable params: 187,272
+    # Non-trainable params: 0
+    # ----------------------------------------------------------------
+    # Input size (MB): 3076241.94
+    # Forward/backward pass size (MB): 4110.75
+    # Params size (MB): 0.71
+    # Estimated Total Size (MB): 3080353.41
+    # ----------------------------------------------------------------
+    data = torch.randn((299336, 3)).to(device)
+    mlp = MLP(8, False).to(device)
+    print(summary(mlp, [(299336, 3), (299336, 3)]))

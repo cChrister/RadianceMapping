@@ -138,6 +138,24 @@ class MPN(nn.Module):
         return final_n
 
 
+class MPN_tiny(nn.Module):
+    # reference: zero-shot noise2noise: efficient image denoising without any data
+    def __init__(self, in_dim, chan_embed=48) -> None:
+        super(MPN_tiny, self).__init__()
+
+        self.act = nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        self.conv1 = nn.Conv2d(in_dim, chan_embed, 3, padding=1)
+        self.conv2 = nn.Conv2d(chan_embed, chan_embed, 3, padding=1)
+        self.conv3 = nn.Conv2d(chan_embed, in_dim, 1)
+
+    def forward(self, x):
+        x = self.act(self.conv1(x))
+        x = self.act(self.conv2(x))
+        x = self.conv3(x)
+        x = torch.softmax(x, dim=1)
+
+        return x
+
 if __name__ == '__main__':
     device = torch.device("cuda")
     moda_num = 64 
@@ -146,10 +164,36 @@ if __name__ == '__main__':
     W = 800
     input_size = (batch_size, moda_num, H, W)
 
+    # ----------------------------------------------------------------
+    # Total params: 121,232
+    # Trainable params: 121,232
+    # Non-trainable params: 0
+    # ----------------------------------------------------------------
+    # Input size (MB): 156.25
+    # Forward/backward pass size (MB): 2587.89
+    # Params size (MB): 0.46
+    # Estimated Total Size (MB): 2744.60
+    # ----------------------------------------------------------------
     data = torch.randn(input_size).to(device)
-    unet = MPN(U=2, udim='pp', in_dim=moda_num).to(device)
-    ret = unet(data)
+    mpn = MPN(U=2, udim='pp', in_dim=moda_num).to(device)
+    ret = mpn(data)
+    print(f"input size: {data.size()}")
+    print(f"output size: {ret.size()}")
+    print(summary(mpn, input_size[1:]))
+
+
+    # ----------------------------------------------------------------
+    # Total params: 51,616
+    # Trainable params: 51,616
+    # Non-trainable params: 0
+    # ----------------------------------------------------------------
+    # Input size (MB): 156.25
+    # Forward/backward pass size (MB): 1250.00
+    # Params size (MB): 0.20
+    # Estimated Total Size (MB): 1406.45
+    # ----------------------------------------------------------------
+    mpn_tiny = MPN_tiny(in_dim=moda_num).to(device)
+    ret = mpn_tiny(data)
     print(f"input size: {data.size()}") # torch.Size([1, 3, 224, 224])
     print(f"output size: {ret.size()}") # torch.Size([1, 3, 224, 224])
-
-    print(summary(unet, input_size[1:]))
+    print(summary(mpn_tiny, input_size[1:]))

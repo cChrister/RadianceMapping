@@ -1,5 +1,5 @@
 from .net import MLP, UNet
-from .mpn import MPN
+from .mpn import MPN, MPN_tiny
 import torch
 import torch.nn as nn
 from torchvision import transforms as T
@@ -17,23 +17,30 @@ class Renderer(nn.Module):
         super(Renderer, self).__init__()
         self.mlp = MLP(args.dim, args.use_fourier).to(args.device)
         self.unet = UNet(args).to(args.device)
-        self.mpn =  MPN(U=2, udim='pp', in_dim=args.dim * args.points_per_pixel).to(args.device)
-        self.dim = args.dim
+        if args.mpn_tiny: # better performance, less computation
+            self.mpn = MPN_tiny(
+                in_dim=args.dim * args.points_per_pixel).to(args.device)
+        else:
+            self.mpn = MPN(U=2, udim='pp', in_dim=args.dim *
+                           args.points_per_pixel).to(args.device)
 
+        self.dim = args.dim
         self.use_crop = args.use_crop
 
         if args.xyznear:
-            self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(args.scale_min, args.scale_max), ratio=(1., 1.))
+            self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(
+                args.scale_min, args.scale_max), ratio=(1., 1.))
         else:
-            self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(args.scale_min, args.scale_max), ratio=(1., 1.), interpolation=T.InterpolationMode.NEAREST)
+            self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(
+                args.scale_min, args.scale_max), ratio=(1., 1.), interpolation=T.InterpolationMode.NEAREST)
 
         self.pad_w = T.Pad(args.pad, 1., 'constant')
         self.pad_b = T.Pad(args.pad, -1., 'constant')
-        
-        self.xyznear = args.xyznear # bool
+
+        self.xyznear = args.xyznear  # bool
         self.mask = args.pix_mask
         self.train_size = args.train_size
-        self.points_per_pixel= args.points_per_pixel
+        self.points_per_pixel = args.points_per_pixel
 
     def forward(self, zbufs, ray, gt, mask_gt, isTrain, xyz_o):
         """
@@ -52,11 +59,11 @@ class Renderer(nn.Module):
             fea_map: the first three dimensions of the feature map of radiance mapping
         """
 
-        H, W, _ = zbufs.shape # [H, W, points_per_pixel]
-        o = ray[...,:3] # [H, W, 1]
-        dirs = ray[...,3:6] # [H, W, 3]
-        cos = ray[...,-1:] # [H, W, 1]
-        
+        H, W, _ = zbufs.shape  # [H, W, points_per_pixel]
+        o = ray[..., :3]  # [H, W, 1]
+        dirs = ray[..., 3:6]  # [H, W, 3]
+        cos = ray[..., -1:]  # [H, W, 1]
+
         _o = o.unsqueeze(-2).expand(H, W, 1, 3)
         _dirs = dirs.unsqueeze(-2).expand(H, W, 1, 3)
         _cos = cos.unsqueeze(-2).expand(H, W, 1, 3)
@@ -65,9 +72,10 @@ class Renderer(nn.Module):
             ray_pad = self.pad_w(ray.permute(2, 0, 1).unsqueeze(0))
             gt_pad = self.pad_w(gt.permute(2, 0, 1).unsqueeze(0))
             zbufs_pad = self.pad_b(zbufs.permute(2, 0, 1).unsqueeze(0))
-            
+
             cat_img = torch.cat([ray_pad, gt_pad, zbufs_pad], dim=1)
-            cat_img = self.randomcrop(cat_img) # [1, _, train_size, train_size]
+            # [1, _, train_size, train_size]
+            cat_img = self.randomcrop(cat_img)
             _, _, H, W = cat_img.shape
             # o_crop = cat_img[0, :3].permute(1, 2, 0)
             dirs_crop = cat_img[0, 3:6].permute(1, 2, 0)
@@ -77,7 +85,7 @@ class Renderer(nn.Module):
             zbufs_crop = cat_img[0, 10:].permute(1, 2, 0)
 
             zbufs = zbufs_crop.clone()
-            _o = ray[:H,:W,:3].unsqueeze(-2)
+            _o = ray[:H, :W, :3].unsqueeze(-2)
             _dirs = dirs_crop.clone().unsqueeze(-2).expand(H, W, 1, 3)
             _cos = cos_crop.clone().unsqueeze(-2).expand(H, W, 1, 3)
 
@@ -87,57 +95,59 @@ class Renderer(nn.Module):
             del cat_img, ray_pad, gt_pad, zbufs_pad
             torch.cuda.empty_cache()
 
-
         radiance_map = []
         for i in range(zbufs.shape[-1]):
-            zbuf = zbufs[..., i].unsqueeze(-1) # [H, W, 1]
+            zbuf = zbufs[..., i].unsqueeze(-1)  # [H, W, 1]
 
             if isTrain:
-                pix_mask = zbuf > 0.2 # [H, W, 1]
+                pix_mask = zbuf > 0.2  # [H, W, 1]
             else:
                 pix_mask = zbuf > 0
 
-            o = _o[pix_mask] # occ_point 3
+            o = _o[pix_mask]  # occ_point 3
             dirs = _dirs[pix_mask]  # occ_point 3
             cos = _cos[pix_mask]  # occ_point 1
             zbuf = zbuf.unsqueeze(-1)[pix_mask]  # occ_point 1
 
             if self.xyznear:
-                xyz_near = o + dirs * zbuf / cos # occ_point 3
+                xyz_near = o + dirs * zbuf / cos  # occ_point 3
             else:
                 xyz_near = xyz_o[zbuf.squeeze(-1).long()]
 
-            feature = self.mlp(xyz_near, dirs) # occ_point 3
+            feature = self.mlp(xyz_near, dirs)  # occ_point 3
             feature_map = torch.zeros([H, W, 1, self.dim], device=zbuf.device)
-            feature_map[pix_mask] = feature # [400, 400, 1, self.dim]
+            feature_map[pix_mask] = feature  # [400, 400, 1, self.dim]
             radiance_map.append(feature_map.permute(2, 3, 0, 1))
 
-
-        rdmp = torch.cat(radiance_map, dim=1) # [1, self.dim * self.points_per_pixel, H, W]
+        # [1, self.dim * self.points_per_pixel, H, W]
+        rdmp = torch.cat(radiance_map, dim=1)
 
         del radiance_map
         torch.cuda.empty_cache()
 
-        pred_mask = self.mpn(rdmp) # [1, self.dim * self.points_per_pixel, H, W]
-        
-        fuse_rdmp = rdmp.mul(pred_mask) # [1, self.dim * self.points_per_pixel, H, W]
+        # [1, self.dim * self.points_per_pixel, H, W]
+        pred_mask = self.mpn(rdmp)
+
+        # [1, self.dim * self.points_per_pixel, H, W]
+        fuse_rdmp = rdmp.mul(pred_mask)
         # fuse_rdmp = rdmp.mul(pred_mask).sum(dim=1).unsqueeze(1) # [1, 1, H, W]
         # fuse_rdmp = fuse_rdmp.expand(1, self.dim, H, W)
 
         # feature_map_view = fuse_rdmp.clone().squeeze(0)[:3, :, :]
         # feature_map_view = torch.sigmoid(feature_map_view.permute(1, 2, 0))
 
-        ret = self.unet(fuse_rdmp) # [1, 3, H, W]
+        ret = self.unet(fuse_rdmp)  # [1, 3, H, W]
 
         if self.mask and (not isTrain):
-            pix_mask = pix_mask.int().unsqueeze(-1).permute(2,3,0,1) # [1, 1, H, W]
-            ret = ret * pix_mask + (1 - pix_mask) # 1 3 h w
+            pix_mask = pix_mask.int().unsqueeze(-1).permute(2,
+                                                            3, 0, 1)  # [1, 1, H, W]
+            ret = ret * pix_mask + (1 - pix_mask)  # 1 3 h w
 
-
-        img = ret.squeeze(0).permute(1, 2, 0) # [H, W, 3]
+        img = ret.squeeze(0).permute(1, 2, 0)  # [H, W, 3]
 
         # return {'img':img, 'gt':gt, 'mask_gt':mask_gt, 'fea_map':feature_map_view}
-        return {'img':img, 'gt':gt, 'mask_gt':mask_gt}
+        return {'img': img, 'gt': gt, 'mask_gt': mask_gt}
+
 
 if __name__ == '__main__':
     device = torch.device("cuda")
