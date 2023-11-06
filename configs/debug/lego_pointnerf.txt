@@ -1,4 +1,4 @@
-expname = lego_pointnerf_mpn_rdmp_debug
+expname = frebpcr
 device = 'cuda:0'
 logdir = ./logs
 datadir = ./data/nerf_synthetic/lego
@@ -9,7 +9,7 @@ radius = 0.005
 frag_path = './data/fragments/lego_pointnerf_debug'
 H = 800
 W = 800
-train_size = 800
+train_size = 400
 
 dim = 8
 
@@ -21,15 +21,17 @@ scale_min = 0.111
 
 pad = 100
 
-epochs = 1000
-points_per_pixel = 8
+epochs = 2000
+points_per_pixel = 16
 
 use_crop
 xyznear
+af_mlp
+
 
 U = 4
 udim = npbg
 vgg_l = 0.01
 edge_mask = 0
-test_freq = 50
+test_freq = 200
 vid_freq = 100

@@ -1,4 +1,4 @@
-from .net import MLP, UNet
+from .net import MLP, UNet, AFNet
 from .mpn import MPN, MPN_tiny
 import torch
 import torch.nn as nn
@@ -15,14 +15,20 @@ class Renderer(nn.Module):
 
     def __init__(self, args):
         super(Renderer, self).__init__()
-        self.mlp = MLP(args.dim, args.use_fourier).to(args.device)
-        self.unet = UNet(args).to(args.device)
-        if args.mpn_tiny: # better performance, less computation
+        
+        if args.af_mlp:
+            self.mlp = AFNet(args.dim).to(args.device)
+        else:
+            self.mlp = MLP(args.dim, args.use_fourier).to(args.device)
+            
+        if args.mpn_tiny:  # better performance, less computation
             self.mpn = MPN_tiny(
                 in_dim=args.dim * args.points_per_pixel).to(args.device)
         else:
             self.mpn = MPN(U=2, udim='pp', in_dim=args.dim *
                            args.points_per_pixel).to(args.device)
+
+        self.unet = UNet(args).to(args.device)
 
         self.dim = args.dim
         self.use_crop = args.use_crop
@@ -122,11 +128,19 @@ class Renderer(nn.Module):
         # [1, self.dim * self.points_per_pixel, H, W]
         rdmp = torch.cat(radiance_map, dim=1)
 
-        del radiance_map
+        del radiance_map, _o, _dirs, _cos
         torch.cuda.empty_cache()
 
         # [1, self.dim * self.points_per_pixel, H, W]
         pred_mask = self.mpn(rdmp)
+        
+        
+        ###################################     try to add regulize term #################################
+        # for i in range(self.points_per_pixel):
+            # pred_mask[:, i*self.dim:(i+1)*self.dim, :, :] #[1, dim, H, W]
+
+
+
 
         # [1, self.dim * self.points_per_pixel, H, W]
         fuse_rdmp = rdmp.mul(pred_mask)

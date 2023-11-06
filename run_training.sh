@@ -8,4 +8,5 @@
 #########################################################################
 echo "------Training: debug/lego_pointnerf, device $1-------"
 export CUDA_VISIBLE_DEVICES=$1
+#python run_rasterize.py --config=configs/debug/lego_pointnerf.txt
 python main.py --config=configs/debug/lego_pointnerf.txt

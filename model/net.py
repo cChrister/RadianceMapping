@@ -31,6 +31,33 @@ def positional_encoding(tensor, num_encoding_functions=6, include_input=False, l
     # Special case, for no positional encoding
     return torch.cat(encoding, dim=-1)
 
+def frebpcr_positional_encoding(tensor, num_encoding_functions=6, include_input=False, log_sampling=True, factor=1):
+    encoding = [tensor] if include_input else []
+    frequency_bands = None
+    if log_sampling:
+        frequency_bands = 2.0 ** torch.linspace(
+            0.0,
+            num_encoding_functions - 1,
+            num_encoding_functions * factor,
+            dtype=tensor.dtype,
+            device=tensor.device,
+        )
+    else:
+        frequency_bands = torch.linspace(
+            2.0 ** 0.0,
+            2.0 ** (num_encoding_functions - 1),
+            num_encoding_functions,
+            dtype=tensor.dtype,
+            device=tensor.device,
+        )
+
+    for freq in frequency_bands:
+        for func in [torch.sin, torch.cos]:
+            encoding.append(func(tensor * freq * 3.1415926))  
+
+    # Special case, for no positional encoding
+    return torch.cat(encoding, dim=-1)
+
 
 def fourier_encoding(tensor, choice='xyz', gaussian_scale=10, xyz_size=30, dirs_size=12, sigma=0.4):
     # https://github.com/tancik/fourier-feature-networks/blob/master/Experiments/3d_simple_nerf.ipynb
@@ -94,6 +121,50 @@ class MLP(nn.Module):
 
         x = self.l4(x)
         x = self.ac(x)
+
+        x = self.l5(x)
+        return x
+
+
+class AFNet(nn.Module):
+
+    def __init__(self, dim):
+        super(AFNet, self).__init__()
+
+        self.l1 = nn.Linear(120, 256)
+        self.l2 = nn.Linear(256, 256)
+        self.l3 = nn.Linear(256, 256)
+        self.l4 = nn.Linear(280, 128)
+        self.l5 = nn.Linear(128, dim)
+
+        self.ac = nn.ReLU()
+
+        self.hyper = nn.Sequential(
+            nn.Linear(120, 256),
+            nn.ReLU(),
+            nn.Linear(256, dim)
+        )
+
+    def forward(self, xyz, dirs):
+        xyz = frebpcr_positional_encoding(xyz, 10, factor=2)
+        dirs = frebpcr_positional_encoding(dirs, 2, factor=2)
+
+        freq = self.hyper(xyz).unsqueeze(-1)
+
+        x = self.l1(xyz)
+        x = x * torch.sin(x * freq[:,0] + freq[:,1])
+
+        x = self.l2(x)
+        x = x * torch.sin(x * freq[:,2] + freq[:,3])
+
+
+        x = self.l3(x)
+        x = x * torch.sin(x * freq[:,4] + freq[:,5])
+
+        x = torch.cat([x, dirs], dim=-1)
+
+        x = self.l4(x)
+        x = x * torch.sin(x * freq[:,6] + freq[:,7])
 
         x = self.l5(x)
         return x
@@ -224,9 +295,10 @@ class UNet(nn.Module):
 
         return self.final(up1)
 
+
 if __name__ == '__main__':
     device = torch.device("cuda")
-    # moda_num = 64 
+    # moda_num = 64
     # batch_size = 1
     # H = 800
     # W = 800
