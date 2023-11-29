@@ -79,7 +79,12 @@ class Renderer(nn.Module):
             gt_pad = self.pad_w(gt.permute(2, 0, 1).unsqueeze(0))
             zbufs_pad = self.pad_b(zbufs.permute(2, 0, 1).unsqueeze(0))
 
-            cat_img = torch.cat([ray_pad, gt_pad, zbufs_pad], dim=1)
+            if mask_gt is not None:
+                mask_gt = mask_gt.permute(2, 0, 1).unsqueeze(0)
+                cat_img = torch.cat([ray_pad, gt_pad, mask_gt, zbufs_pad], dim=1)
+            else:
+                cat_img = torch.cat([ray_pad, gt_pad, zbufs_pad], dim=1)
+
             # [1, _, train_size, train_size]
             cat_img = self.randomcrop(cat_img)
             _, _, H, W = cat_img.shape
@@ -88,7 +93,12 @@ class Renderer(nn.Module):
             cos_crop = cat_img[0, 6:7].permute(1, 2, 0)
             gt_crop = cat_img[0, 7:10].permute(1, 2, 0)
             gt = gt_crop
-            zbufs_crop = cat_img[0, 10:].permute(1, 2, 0)
+            
+            if mask_gt is not None:
+                mask_gt = cat_img[0, 10:11].permute(1, 2, 0)
+                zbufs_crop = cat_img[0, 11:].permute(1, 2, 0)
+            else:
+                zbufs_crop = cat_img[0, 10:].permute(1, 2, 0)
 
             zbufs = zbufs_crop.clone()
             _o = ray[:H, :W, :3].unsqueeze(-2)

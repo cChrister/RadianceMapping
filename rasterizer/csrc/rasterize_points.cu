@@ -395,14 +395,15 @@ at::Tensor RasterizePointsCoarseCuda(
   const int num_bins_y = 1 + (H - 1) / bin_size;
   const int num_bins_x = 1 + (W - 1) / bin_size;
 
-  if (num_bins_y >= kMaxItemsPerBin || num_bins_x >= kMaxItemsPerBin) {
-    // Make sure we do not use too much shared memory.
-    std::stringstream ss;
-    ss << "In Coarse Rasterizer got num_bins_y: " << num_bins_y
-       << ", num_bins_x: " << num_bins_x << ", "
-       << "; that's too many!";
-    AT_ERROR(ss.str());
-  }
+  // [disable for dtu dataset]
+  // if (num_bins_y >= kMaxItemsPerBin || num_bins_x >= kMaxItemsPerBin) {
+  //   // Make sure we do not use too much shared memory.
+  //   std::stringstream ss;
+  //   ss << "In Coarse Rasterizer got num_bins_y: " << num_bins_y
+  //      << ", num_bins_x: " << num_bins_x << ", "
+  //      << "; that's too many!";
+  //   AT_ERROR(ss.str());
+  // }
   auto opts = num_points_per_cloud.options().dtype(at::kInt);
   at::Tensor points_per_bin = at::zeros({N, num_bins_y, num_bins_x}, opts);
   at::Tensor bin_points = at::full({N, num_bins_y, num_bins_x, M}, -1, opts);

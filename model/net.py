@@ -131,7 +131,7 @@ class AFNet(nn.Module):
     def __init__(self, dim):
         super(AFNet, self).__init__()
 
-        self.l1 = nn.Linear(120, 256)
+        self.l1 = nn.Linear(60, 256)
         self.l2 = nn.Linear(256, 256)
         self.l3 = nn.Linear(256, 256)
         self.l4 = nn.Linear(280, 128)
@@ -140,14 +140,16 @@ class AFNet(nn.Module):
         self.ac = nn.ReLU()
 
         self.hyper = nn.Sequential(
-            nn.Linear(120, 256),
+            nn.Linear(60, 256),
             nn.ReLU(),
             nn.Linear(256, dim)
         )
 
     def forward(self, xyz, dirs):
-        xyz = frebpcr_positional_encoding(xyz, 10, factor=2)
-        dirs = frebpcr_positional_encoding(dirs, 2, factor=2)
+        # xyz = frebpcr_positional_encoding(xyz, 10, factor=2) # 120
+        # dirs = frebpcr_positional_encoding(dirs, 2, factor=2)
+        xyz = fourier_encoding(xyz, 'xyz')
+        dirs = fourier_encoding(dirs, 'dirs')
 
         freq = self.hyper(xyz).unsqueeze(-1)
 

@@ -123,7 +123,7 @@ class DTUDataset(data.Dataset):
         self.mask_list = []
 
         self.img_wh = (args.W, args.H)
-        self.pcdir = args.pcdir
+        self.pc_dir = args.pcdir
         self.device = args.device
         
         

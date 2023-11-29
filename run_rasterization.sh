@@ -7,6 +7,5 @@
 # Brief: 
 #########################################################################
 echo "------Rasterization:, device $1---------"
-export CUDA_VISIBLE_DEVICES=$1
-python run_rasterize.py --config=configs/debug/lego_pointnerf.txt
-
+#export CUDA_VISIBLE_DEVICES=$1
+python run_rasterize.py --config=configs/ablation/lego_pointnerf_4.txt

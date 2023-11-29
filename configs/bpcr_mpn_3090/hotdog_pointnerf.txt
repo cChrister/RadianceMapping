@@ -1,4 +1,4 @@
-expname = hotdog
+expname = hotdog_bpcr
 device = 'cuda:0'
 logdir = ./logs
 datadir = ./data/nerf_synthetic/hotdog
@@ -9,7 +9,7 @@ radius = 0.005
 frag_path = './data/fragments/hotdog_pointnerf'
 H = 800
 W = 800
-train_size = 400
+train_size = 800
 
 dim = 8
 

@@ -1,4 +1,4 @@
-expname = mic
+expname = mic_bpcr
 device = 'cuda:0'
 logdir = ./logs
 datadir = ./data/nerf_synthetic/mic
@@ -9,7 +9,7 @@ radius = 0.005
 frag_path = './data/fragments/mic_pointnerf'
 H = 800
 W = 800
-train_size = 400
+train_size = 800
 
 dim = 8
 
@@ -22,7 +22,7 @@ scale_min = 0.111
 pad = 100
 
 epochs = 2000
-points_per_pixel = 16
+points_per_pixel = 8
 
 use_crop
 xyznear

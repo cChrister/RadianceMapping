@@ -1,4 +1,4 @@
-expname = ficus
+expname = ficus_bpcr
 device = 'cuda:0'
 logdir = ./logs
 datadir = ./data/nerf_synthetic/ficus
@@ -9,7 +9,7 @@ radius = 0.003
 frag_path = './data/fragments/ficus_pointnerf'
 H = 800
 W = 800
-train_size = 400
+train_size = 800
 
 dim = 8
 

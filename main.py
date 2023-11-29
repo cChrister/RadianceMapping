@@ -25,8 +25,15 @@ args = parser.parse_args()
 
 set_seed(42)
 log_dir = './debug_logs/' if DEBUG else './logs/'
-back_path = os.path.join(log_dir, time.strftime(
+
+if args.use_crop:
+    back_path = os.path.join(log_dir, time.strftime(
     "%y%m%d-%H%M%S-" + f'{args.expname}-{args.H}-crop{args.train_size}-dim{args.dim}-zbuf{args.points_per_pixel}-pix{args.pix_mask}-xyznear{args.xyznear}'))
+else:
+    back_path = os.path.join(log_dir, time.strftime(
+    "%y%m%d-%H%M%S-" + f'{args.expname}-{args.H}-nocrop-dim{args.dim}-zbuf{args.points_per_pixel}-pix{args.pix_mask}-xyznear{args.xyznear}'))
+
+
 os.makedirs(back_path)
 backup_terminal_outputs(back_path)
 backup_code(back_path, ignored_in_current_folder=[
@@ -133,6 +140,7 @@ if __name__ == '__main__':
             if args.dataset == 'dtu':
                 img_pre = output['img'] * \
                     output['mask_gt'] + 1 - output['mask_gt']
+                # img_pre = output['img']
             else:
                 img_pre = output['img']
 
@@ -247,6 +255,7 @@ if __name__ == '__main__':
                         plt.imsave(os.path.join(video_it_path, str(
                             i).rjust(3, '0') + '.png'), img_pre)
 
+                    del output
                     torch.cuda.empty_cache()
 
             test_lpips = test_lpips / len(test_set)

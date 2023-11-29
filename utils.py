@@ -21,7 +21,7 @@ def config_parser():
     parser.add_argument("--mpn_tiny", action='store_true', default=False, help='enable mpn_tiny')
     parser.add_argument("--af_mlp", action='store_true', default=False, help='enable frebpcr af_mlp')
 
-    parser.add_argument("--epochs", type=int, default=6000, help='train epochs. Keep training until CTRL-C, if less than 0')
+    parser.add_argument("--epochs", type=int, default=-1, help='train epochs. Keep training until CTRL-C, if less than 0')
     parser.add_argument("--radius", type=float, help='the radius of points when rasterizing')
     parser.add_argument("--frag_path", type=str, help='directory of saving fragments')
     parser.add_argument("--H", type=int)
