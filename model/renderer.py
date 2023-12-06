@@ -1,4 +1,4 @@
-from .net import MLP, UNet, AFNet
+from .net import MLP, UNet, UNet_color, AFNet 
 from .mpn import MPN, MPN_tiny
 import torch
 import torch.nn as nn
@@ -6,6 +6,7 @@ from torchvision import transforms as T
 # profile
 from torchsummary import summary
 from utils import config_parser
+import time
 
 
 class Renderer(nn.Module):
@@ -111,6 +112,7 @@ class Renderer(nn.Module):
             del cat_img, ray_pad, gt_pad, zbufs_pad
             torch.cuda.empty_cache()
 
+        
         radiance_map = []
         for i in range(zbufs.shape[-1]):
             zbuf = zbufs[..., i].unsqueeze(-1)  # [H, W, 1]
@@ -131,6 +133,7 @@ class Renderer(nn.Module):
                 xyz_near = xyz_o[zbuf.squeeze(-1).long()]
 
             feature = self.mlp(xyz_near, dirs)  # occ_point 3
+
             feature_map = torch.zeros([H, W, 1, self.dim], device=zbuf.device)
             feature_map[pix_mask] = feature  # [400, 400, 1, self.dim]
             radiance_map.append(feature_map.permute(2, 3, 0, 1))
@@ -138,29 +141,34 @@ class Renderer(nn.Module):
         # [1, self.dim * self.points_per_pixel, H, W]
         rdmp = torch.cat(radiance_map, dim=1)
 
+        ################################### print(f"rdmp {t_cnt}") # 0.2s
+
+
         del radiance_map, _o, _dirs, _cos
         torch.cuda.empty_cache()
 
         # [1, self.dim * self.points_per_pixel, H, W]
         pred_mask = self.mpn(rdmp)
-        
-        
+
+        # confidence = pred_mask.clone().detach()
+        # confidence = confidence.mean(dim=1)
+
         ###################################     try to add regulize term #################################
         # for i in range(self.points_per_pixel):
             # pred_mask[:, i*self.dim:(i+1)*self.dim, :, :] #[1, dim, H, W]
-
-
-
 
         # [1, self.dim * self.points_per_pixel, H, W]
         fuse_rdmp = rdmp.mul(pred_mask)
         # fuse_rdmp = rdmp.mul(pred_mask).sum(dim=1).unsqueeze(1) # [1, 1, H, W]
         # fuse_rdmp = fuse_rdmp.expand(1, self.dim, H, W)
 
+        ################################## print(f"mpn {t_cnt}") # 0.01s
+
+
         # feature_map_view = fuse_rdmp.clone().squeeze(0)[:3, :, :]
         # feature_map_view = torch.sigmoid(feature_map_view.permute(1, 2, 0))
-
         ret = self.unet(fuse_rdmp)  # [1, 3, H, W]
+        ################################## print(f"unet {t_cnt}") # 0.01s
 
         if self.mask and (not isTrain):
             pix_mask = pix_mask.int().unsqueeze(-1).permute(2,
@@ -171,6 +179,106 @@ class Renderer(nn.Module):
 
         # return {'img':img, 'gt':gt, 'mask_gt':mask_gt, 'fea_map':feature_map_view}
         return {'img': img, 'gt': gt, 'mask_gt': mask_gt}
+
+class Renderer_color(nn.Module):
+    """
+    This class implements radiance mapping and refinement.
+    """
+
+    def __init__(self, args):
+        super(Renderer_color, self).__init__()
+        
+        if args.af_mlp:
+            self.mlp = AFNet(args.dim).to(args.device)
+        else:
+            self.mlp = MLP(args.dim, args.use_fourier).to(args.device)
+            
+        if args.mpn_tiny:  # better performance, less computation
+            self.mpn = MPN_tiny(
+                in_dim=3 * args.points_per_pixel).to(args.device)
+        else:
+            self.mpn = MPN(U=2, udim='pp', in_dim=3 *
+                           args.points_per_pixel).to(args.device)
+
+        self.unet = UNet_color(args).to(args.device)
+
+        self.dim = args.dim
+        self.use_crop = args.use_crop
+
+        if args.xyznear:
+            self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(
+                args.scale_min, args.scale_max), ratio=(1., 1.))
+        else:
+            self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(
+                args.scale_min, args.scale_max), ratio=(1., 1.), interpolation=T.InterpolationMode.NEAREST)
+
+        self.pad_w = T.Pad(args.pad, 1., 'constant')
+        self.pad_b = T.Pad(args.pad, -1., 'constant')
+
+        self.xyznear = args.xyznear  # bool
+        self.mask = args.pix_mask
+        self.train_size = args.train_size
+        self.points_per_pixel = args.points_per_pixel
+
+    def forward(self, color, gt, mask_gt, isTrain):
+        """
+        Args:
+            zbuf: z-buffer from rasterization (index buffer when xyznear is True)
+            ray: ray direction map
+            gt: gt image (used in training to maintain consistent cropping and resizing with input)
+            mask_gt: gt mask (used in dtu dataset)
+            isTrain: train mode or not
+            xyz_o: world coordinates of point clouds (used when xyzenar is True)
+
+        Output:
+            img: rendered image
+            gt: gt image after cropping and resizing
+            mask_gt: gt mask after cropping and resizing 
+            fea_map: the first three dimensions of the feature map of radiance mapping
+        """
+
+        H, W, C = color.shape  # [H, W, points_per_pixel]
+
+        if self.use_crop and isTrain:
+            gt_pad = self.pad_w(gt.permute(2, 0, 1).unsqueeze(0))
+            color_pad = self.pad_w(color.permute(2, 0, 1).unsqueeze(0))
+            
+            if mask_gt is not None:
+                mask_gt = mask_gt.permute(2, 0, 1).unsqueeze(0)
+                cat_img = torch.cat([color_pad, gt_pad, mask_gt], dim=1)
+            else:
+                cat_img = torch.cat([color_pad, gt_pad], dim=1)
+
+            cat_img = self.randomcrop(cat_img)
+
+            color = cat_img[0, :C].permute(1, 2, 0) # [h, w, 3 * points_per_pixel]
+            gt = cat_img[0, C:C+3].permute(1, 2, 0) # [h, w, 3]
+
+            
+            if mask_gt is not None:
+                mask_gt = cat_img[0, C+3:].permute(1, 2, 0)
+
+        # [1, 3 * self.points_per_pixel, H, W]
+        rdmp = color.permute(2, 0, 1).unsqueeze(0)
+
+        # [1, 3 * self.points_per_pixel, H, W]
+        pred_mask = self.mpn(rdmp)
+
+        # [1, 3 * self.points_per_pixel, H, W]
+        fuse_rdmp = rdmp.mul(pred_mask)
+        ret = self.unet(fuse_rdmp)  # [1, 3, H, W]
+
+        # if self.mask and (not isTrain):
+        #     pix_mask = pix_mask.int().unsqueeze(-1).permute(2,
+        #                                                     3, 0, 1)  # [1, 1, H, W]
+        #     ret = ret * pix_mask + (1 - pix_mask)  # 1 3 h w
+
+        img = ret.squeeze(0).permute(1, 2, 0)  # [H, W, 3]
+
+        # return {'img':img, 'gt':gt, 'mask_gt':mask_gt, 'fea_map':feature_map_view}
+        return {'img': img, 'gt': gt, 'mask_gt': mask_gt}
+
+
 
 
 if __name__ == '__main__':

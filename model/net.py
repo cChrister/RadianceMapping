@@ -131,39 +131,70 @@ class AFNet(nn.Module):
     def __init__(self, dim):
         super(AFNet, self).__init__()
 
+        ##############################################
+        # self.l1 = nn.Linear(120,256)
+        # self.l1 = nn.Linear(60,256)
+        # self.l2 = nn.Linear(256,256) 
+        # self.l3 = nn.Linear(256,256) 
+        # self.l4 = nn.Linear(280,128)
+        # self.l5 = nn.Linear(128,dim)
+
         self.l1 = nn.Linear(60, 256)
         self.l2 = nn.Linear(256, 256)
-        self.l3 = nn.Linear(256, 256)
-        self.l4 = nn.Linear(280, 128)
+        self.l3 = nn.Linear(280, 256)
+        self.l4 = nn.Linear(256, 128)
         self.l5 = nn.Linear(128, dim)
 
-        self.ac = nn.ReLU()
+        # self.ac = nn.ReLU()
 
         self.hyper = nn.Sequential(
-            nn.Linear(60, 256),
+            nn.Linear(60,256),
             nn.ReLU(),
-            nn.Linear(256, dim)
+            nn.Linear(256,8),
         )
 
+
     def forward(self, xyz, dirs):
-        # xyz = frebpcr_positional_encoding(xyz, 10, factor=2) # 120
-        # dirs = frebpcr_positional_encoding(dirs, 2, factor=2)
-        xyz = fourier_encoding(xyz, 'xyz')
-        dirs = fourier_encoding(dirs, 'dirs')
+        # xyz = positional_encoding(xyz, 10, factor=2)
+        # dirs = positional_encoding(dirs, 2, factor=2)
+        xyz = positional_encoding(xyz, 10)
+        dirs = positional_encoding(dirs, 4)
 
+
+        ##############################################
+        # freq = self.hyper(xyz).unsqueeze(-1)
+        
+        # x = self.l1(xyz)
+        # x = x * torch.sin(x * freq[:,0] + freq[:,1])
+
+        # x = self.l2(x)
+        # x = x * torch.sin(x * freq[:,2] + freq[:,3])
+
+
+        # x = self.l3(x)
+        # x = x * torch.sin(x * freq[:,4] + freq[:,5])
+
+        # x = torch.cat([x, dirs], dim=-1)
+
+        # x = self.l4(x)
+        # x = x * torch.sin(x * freq[:,6] + freq[:,7])
+
+        # x = self.l5(x)
+        # return x
+        
+        
         freq = self.hyper(xyz).unsqueeze(-1)
-
+        
         x = self.l1(xyz)
         x = x * torch.sin(x * freq[:,0] + freq[:,1])
 
         x = self.l2(x)
         x = x * torch.sin(x * freq[:,2] + freq[:,3])
 
+        x = torch.cat([x, dirs], dim=-1)
 
         x = self.l3(x)
         x = x * torch.sin(x * freq[:,4] + freq[:,5])
-
-        x = torch.cat([x, dirs], dim=-1)
 
         x = self.l4(x)
         x = x * torch.sin(x * freq[:,6] + freq[:,7])
@@ -297,6 +328,60 @@ class UNet(nn.Module):
 
         return self.final(up1)
 
+ 
+class UNet_color(nn.Module):
+    def __init__(self, args, out_dim=3, upsample_mode='nearest'):
+        super().__init__()
+
+        in_dim = 3 * args.points_per_pixel
+
+        if args.udim == 'pp':
+            filters = [16, 32, 48, 64, 80]
+        elif args.udim == 'npbg':
+            filters = [64, 128, 256, 512, 1024]
+            filters = [x // 4 for x in filters]
+        elif args.udim == '4xnpbg':
+            filters = [64, 128, 256, 512, 1024]
+        else:
+            assert False
+
+        self.start = GatedBlock(in_dim, filters[0])
+
+        self.down1 = DownsampleBlock(filters[0], filters[1])
+        self.down2 = DownsampleBlock(filters[1], filters[2])
+
+        if args.U == 4:
+            self.down3 = DownsampleBlock(filters[2], filters[3])
+            self.down4 = DownsampleBlock(filters[3], filters[4])
+
+            self.up4 = UpsampleBlock(filters[3], upsample_mode, filters[4])
+            self.up3 = UpsampleBlock(filters[2], upsample_mode, filters[3])
+        self.up2 = UpsampleBlock(filters[1], upsample_mode, filters[2])
+        self.up1 = UpsampleBlock(filters[0], upsample_mode, filters[1])
+
+        self.final = nn.Sequential(
+            nn.Conv2d(filters[0], out_dim, 1),
+        )
+        self.U = args.U
+
+    def forward(self, x):
+
+        in64 = self.start(x)
+
+        down1 = self.down1(in64)
+        down2 = self.down2(down1)
+        if self.U == 4:
+            down3 = self.down3(down2)
+            down4 = self.down4(down3)
+
+            up4 = self.up4(down4, down3)
+            up3 = self.up3(up4, down2)
+            up2 = self.up2(up3, down1)
+        else:
+            up2 = self.up2(down2, down1)
+        up1 = self.up1(up2, in64)
+
+        return self.final(up1)
 
 if __name__ == '__main__':
     device = torch.device("cuda")

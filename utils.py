@@ -61,6 +61,18 @@ def load_fragments(args):
     print('Load fragments from', train_name, test_name)
     return torch.tensor(train_buf), torch.tensor(test_buf)
 
+def load_color_fragments(args):
+    train_name = str(args.radius) + '-color-' + str(args.H) + '-' + \
+        str(args.points_per_pixel) + '-train.npy'
+    test_name = str(args.radius) + '-color-' + str(args.H) + '-' + \
+        str(args.points_per_pixel) +'-test.npy'
+    train_path = os.path.join(args.frag_path, train_name) 
+    test_path = os.path.join(args.frag_path, test_name)
+    train_buf = np.load(train_path)
+    test_buf = np.load(test_path)
+    print('Load fragments from', train_name, test_name)
+    return torch.tensor(train_buf), torch.tensor(test_buf)
+
 def load_idx(args):
     train_name = str(args.radius) + '-idx-' + str(args.H) + '-' + \
         str(args.points_per_pixel) +'-train.npy'
