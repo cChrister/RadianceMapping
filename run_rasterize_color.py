@@ -74,7 +74,7 @@ if __name__ == '__main__':
     # for i, batch in enumerate(test_loader):
         pose = batch['w2c'][0]
         xyz_ndc = pc.get_ndc(pose)
-        id, zbuf = rasterize(xyz_ndc, (args.H, args.W),
+        idbuf, zbuf = rasterize(xyz_ndc, (args.H, args.W),
                              args.radius, args.points_per_pixel)
 
         # DEBUG
@@ -85,7 +85,7 @@ if __name__ == '__main__':
         img_list = []
         for j in range(args.points_per_pixel):
             color = torch.zeros([1, args.H, args.W, 3], device=zbuf.device)
-            pc_id = id[:, :, :, j]
+            pc_id = idbuf[:, :, :, j]
             mask = pc_id >= 0
             lut = pc_id.view(-1)
             lut = lut[lut >= 0].long()
