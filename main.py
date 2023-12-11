@@ -109,6 +109,12 @@ if __name__ == '__main__':
 
     log_string(f'zbuf shape: {train_buf.shape}')
 
+
+
+    if args.ckpt is not None:
+        print(f'load model from {args.ckpt}')
+        renderer.load_state_dict(torch.load(args.ckpt))
+
     it = 0
     epoch = 0
     training_time = 0.

@@ -28,6 +28,7 @@ def config_parser():
     parser.add_argument("--W", type=int)
     parser.add_argument("--train_size", type=int, help='window size of training')
     parser.add_argument("--dataset", type=str)
+    parser.add_argument("--ckpt", type=str)
     parser.add_argument("--device", type=str)
     parser.add_argument("--scale_min", type=float, help='the minimum area ratio when random resize and crop')
     parser.add_argument("--scale_max", type=float, help='the maximum area ratio when random resize and crop')
