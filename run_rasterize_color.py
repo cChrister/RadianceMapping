@@ -98,7 +98,7 @@ if __name__ == '__main__':
             # plt.axis('off')
             # plt.margins(0,0)
             # plt.savefig(str(j)+".png", bbox_inches="tight", pad_inches=0.0)
-            # img_list.append(color)
+            img_list.append(color)
 
         color = torch.cat(img_list, dim=-1) # [1, 800, 800, 3 * args.points_per_pixel]
         color_list.append(color.float().cpu())
@@ -144,7 +144,7 @@ if __name__ == '__main__':
             # plt.axis('off')
             # plt.margins(0,0)
             # plt.savefig(str(j)+".png", bbox_inches="tight", pad_inches=0.0)
-            # img_list.append(color)
+            img_list.append(color)
 
         color = torch.cat(img_list, dim=-1) # [1, 800, 800, 3 * args.points_per_pixel]
         color_list.append(color.float().cpu())

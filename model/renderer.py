@@ -158,6 +158,7 @@ class Renderer(nn.Module):
             # pred_mask[:, i*self.dim:(i+1)*self.dim, :, :] #[1, dim, H, W]
 
         # [1, self.dim * self.points_per_pixel, H, W]
+        
         fuse_rdmp = rdmp.mul(pred_mask)
         # fuse_rdmp = rdmp.mul(pred_mask).sum(dim=1).unsqueeze(1) # [1, 1, H, W]
         # fuse_rdmp = fuse_rdmp.expand(1, self.dim, H, W)
@@ -258,14 +259,18 @@ class Renderer_color(nn.Module):
             if mask_gt is not None:
                 mask_gt = cat_img[0, C+3:].permute(1, 2, 0)
 
-        # [1, 3 * self.points_per_pixel, H, W]
+        # [1, 3 * burst, H, W]
         rdmp = color.permute(2, 0, 1).unsqueeze(0)
 
         # [1, 3 * self.points_per_pixel, H, W]
         pred_mask = self.mpn(rdmp)
+        alpha = torch.cumprod((1 - pred_mask),dim=1)[:,:-1,:,:]
+        ones = (torch.ones_like(pred_mask).to(pred_mask.device)[:,0,:,:]).unsqueeze(0)
+        alpha = torch.cat((ones,alpha),1)
+
 
         # [1, 3 * self.points_per_pixel, H, W]
-        fuse_rdmp = rdmp.mul(pred_mask)
+        fuse_rdmp = rdmp.mul(pred_mask).mul(alpha)
         ret = self.unet(fuse_rdmp)  # [1, 3, H, W]
 
         # if self.mask and (not isTrain):
