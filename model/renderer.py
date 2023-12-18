@@ -264,13 +264,15 @@ class Renderer_color(nn.Module):
 
         # [1, 3 * self.points_per_pixel, H, W]
         pred_mask = self.mpn(rdmp)
-        alpha = torch.cumprod((1 - pred_mask),dim=1)[:,:-1,:,:]
-        ones = (torch.ones_like(pred_mask).to(pred_mask.device)[:,0,:,:]).unsqueeze(0)
-        alpha = torch.cat((ones,alpha),1)
 
+        # initial alpha-blending
+        # alpha = torch.cumprod((1 - pred_mask),dim=1)[:,:-1,:,:]
+        # ones = (torch.ones_like(pred_mask).to(pred_mask.device)[:,0,:,:]).unsqueeze(0)
+        # alpha = torch.cat((ones,alpha),1)
+        # fuse_rdmp = rdmp.mul(pred_mask).mul(alpha)
 
         # [1, 3 * self.points_per_pixel, H, W]
-        fuse_rdmp = rdmp.mul(pred_mask).mul(alpha)
+        fuse_rdmp = rdmp.mul(pred_mask)
         ret = self.unet(fuse_rdmp)  # [1, 3, H, W]
 
         # if self.mask and (not isTrain):
@@ -284,6 +286,109 @@ class Renderer_color(nn.Module):
         return {'img': img, 'gt': gt, 'mask_gt': mask_gt}
 
 
+class Renderer_super(nn.Module):
+    """
+    This class implements radiance mapping and refinement.
+    """
+
+    def __init__(self, args):
+        super(Renderer_color, self).__init__()
+        
+        if args.af_mlp:
+            self.mlp = AFNet(args.dim).to(args.device)
+        else:
+            self.mlp = MLP(args.dim, args.use_fourier).to(args.device)
+            
+        if args.mpn_tiny:  # better performance, less computation
+            self.mpn = MPN_tiny(
+                in_dim=3 * args.points_per_pixel).to(args.device)
+        else:
+            self.mpn = MPN(U=2, udim='pp', in_dim=3 *
+                           args.points_per_pixel).to(args.device)
+
+        self.unet = UNet_color(args).to(args.device)
+
+        self.dim = args.dim
+        self.use_crop = args.use_crop
+
+        if args.xyznear:
+            self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(
+                args.scale_min, args.scale_max), ratio=(1., 1.))
+        else:
+            self.randomcrop = T.RandomResizedCrop(args.train_size, scale=(
+                args.scale_min, args.scale_max), ratio=(1., 1.), interpolation=T.InterpolationMode.NEAREST)
+
+        self.pad_w = T.Pad(args.pad, 1., 'constant')
+        self.pad_b = T.Pad(args.pad, -1., 'constant')
+
+        self.xyznear = args.xyznear  # bool
+        self.mask = args.pix_mask
+        self.train_size = args.train_size
+        self.points_per_pixel = args.points_per_pixel
+
+    def forward(self, color, gt, mask_gt, isTrain):
+        """
+        Args:
+            zbuf: z-buffer from rasterization (index buffer when xyznear is True)
+            ray: ray direction map
+            gt: gt image (used in training to maintain consistent cropping and resizing with input)
+            mask_gt: gt mask (used in dtu dataset)
+            isTrain: train mode or not
+            xyz_o: world coordinates of point clouds (used when xyzenar is True)
+
+        Output:
+            img: rendered image
+            gt: gt image after cropping and resizing
+            mask_gt: gt mask after cropping and resizing 
+            fea_map: the first three dimensions of the feature map of radiance mapping
+        """
+
+        H, W, C = color.shape  # [H, W, points_per_pixel]
+
+        if self.use_crop and isTrain:
+            gt_pad = self.pad_w(gt.permute(2, 0, 1).unsqueeze(0))
+            color_pad = self.pad_w(color.permute(2, 0, 1).unsqueeze(0))
+            
+            if mask_gt is not None:
+                mask_gt = mask_gt.permute(2, 0, 1).unsqueeze(0)
+                cat_img = torch.cat([color_pad, gt_pad, mask_gt], dim=1)
+            else:
+                cat_img = torch.cat([color_pad, gt_pad], dim=1)
+
+            cat_img = self.randomcrop(cat_img)
+
+            color = cat_img[0, :C].permute(1, 2, 0) # [h, w, 3 * points_per_pixel]
+            gt = cat_img[0, C:C+3].permute(1, 2, 0) # [h, w, 3]
+
+            
+            if mask_gt is not None:
+                mask_gt = cat_img[0, C+3:].permute(1, 2, 0)
+
+        # [1, 3 * burst, H, W]
+        rdmp = color.permute(2, 0, 1).unsqueeze(0)
+
+        # [1, 3 * self.points_per_pixel, H, W]
+        pred_mask = self.mpn(rdmp)
+
+        # initial alpha-blending
+        # alpha = torch.cumprod((1 - pred_mask),dim=1)[:,:-1,:,:]
+        # ones = (torch.ones_like(pred_mask).to(pred_mask.device)[:,0,:,:]).unsqueeze(0)
+        # alpha = torch.cat((ones,alpha),1)
+        # fuse_rdmp = rdmp.mul(pred_mask).mul(alpha)
+
+        # [1, 3 * self.points_per_pixel, H, W]
+        fuse_rdmp = rdmp.mul(pred_mask)
+        ret = self.unet(fuse_rdmp)  # [1, 3, H, W]
+
+        # if self.mask and (not isTrain):
+        #     pix_mask = pix_mask.int().unsqueeze(-1).permute(2,
+        #                                                     3, 0, 1)  # [1, 1, H, W]
+        #     ret = ret * pix_mask + (1 - pix_mask)  # 1 3 h w
+
+        img = ret.squeeze(0).permute(1, 2, 0)  # [H, W, 3]
+
+        # return {'img':img, 'gt':gt, 'mask_gt':mask_gt, 'fea_map':feature_map_view}
+        return {'img': img, 'gt': gt, 'mask_gt': mask_gt}
 
 
 if __name__ == '__main__':

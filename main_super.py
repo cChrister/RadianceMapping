@@ -2,9 +2,9 @@ import logging
 import os
 import time
 import torch
-from utils import config_parser, load_color_fragments, load_idx, lr_decay, write_video, mse2psnr
+from utils import config_parser, load_color_fragments, load_fragments, load_idx, lr_decay, write_video, mse2psnr
 from dataset.dataset import nerfDataset, ScanDataset, DTUDataset
-from model.renderer import Renderer_color, Renderer
+from model.renderer import Renderer_super
 import matplotlib.pyplot as plt
 import torch.optim as optim
 from backup_utils import backup_terminal_outputs, backup_code, set_seed
@@ -84,8 +84,7 @@ if __name__ == '__main__':
         train_set, batch_size=1, shuffle=True)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=1)
 
-    renderer = Renderer(args)
-    renderer = Renderer_color(args)
+    renderer = Renderer_super(args)
     edge = args.edge_mask
 
     # Optimizer
@@ -102,13 +101,16 @@ if __name__ == '__main__':
 
     # load buf
     if args.xyznear:
-        train_buf, test_buf = load_color_fragments(args)  # cpu 100 800 800 k
+        train_buf_z, test_buf_z = load_fragments(args)  # cpu 100 800 800 k
+        train_buf_color, test_buf_color = load_color_fragments(args)  # cpu 100 800 800 k
         xyz_o = None
     else:
-        train_buf, test_buf = load_idx(args)  # cpu 100 800 800 k
+        train_buf_z, test_buf_z = load_idx(args)  # cpu 100 800 800 k
+        train_buf_color, test_buf_color = load_idx(args)  # cpu 100 800 800 k
         xyz_o = train_set.get_pc().xyz  # n 3
 
-    log_string(f'zbuf shape: {train_buf.shape}')
+    log_string(f'z_buf shape: {train_buf_z.shape}')
+    log_string(f'color_buf shape: {train_buf_color.shape}')
 
     it = 0
     epoch = 0
@@ -133,9 +135,11 @@ if __name__ == '__main__':
             else:
                 mask_gt = None
 
-            colors = train_buf[idx].to(args.device)  # h w 3*points_per_pixel
+            colors = train_buf_color[idx].to(args.device)  # h w 3*points_per_pixel
+            zbuf = train_buf_z[idx].to(args.device)  # h w 1
 
-            output = renderer(colors, img_gt, mask_gt, isTrain=True)
+            output = renderer(colors, zbuf, img_gt, mask_gt,
+                              isTrain=True, xyz_o=xyz_o)
 
             if args.dataset == 'dtu':
                 img_pre = output['img'] * \
@@ -211,8 +215,10 @@ if __name__ == '__main__':
                     idx = int(batch['idx'][0])
                     ray = batch['ray'][0]
                     img_gt = batch['rgb'][0]
-                    colors = test_buf[idx].to(args.device)
-                    output = renderer(colors, gt=None, mask_gt=None, isTrain=False)
+                    zbuf = test_buf_z[idx].to(args.device)
+                    colors = test_buf_color[idx].to(args.device)
+                    output = renderer(colors, zbuf,  gt=None, 
+                                      mask_gt=None, isTrain=False, xyz_o=xyz_o)
 
                     if args.dataset == 'dtu':
                         mask_gt = batch['mask'][0][..., :1]
