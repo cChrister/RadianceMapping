@@ -24,11 +24,11 @@ pad = 100
 pix_mask
 xyznear
 
-U = 4
+U = 8
 udim = 4xnpbg
 vgg_l = 0.01
 edge_mask = 0
 test_freq = 10
 vid_freq = 30
 
-use_fourier
+feature_channels = 16

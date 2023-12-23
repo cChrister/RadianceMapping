@@ -17,8 +17,8 @@ from utils import flip_error_map
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# DEBUG = False
-DEBUG = True
+DEBUG = False
+# DEBUG = True
 
 parser = config_parser()
 args = parser.parse_args()
@@ -138,7 +138,7 @@ if __name__ == '__main__':
             colors = train_buf_color[idx].to(args.device)  # h w 3*points_per_pixel
             zbuf = train_buf_z[idx].to(args.device)  # h w 1
 
-            output = renderer(colors, zbuf, img_gt, mask_gt,
+            output = renderer(colors, ray, zbuf, img_gt, mask_gt,
                               isTrain=True, xyz_o=xyz_o)
 
             if args.dataset == 'dtu':
@@ -217,7 +217,7 @@ if __name__ == '__main__':
                     img_gt = batch['rgb'][0]
                     zbuf = test_buf_z[idx].to(args.device)
                     colors = test_buf_color[idx].to(args.device)
-                    output = renderer(colors, zbuf,  gt=None, 
+                    output = renderer(colors, ray, zbuf,  gt=None, 
                                       mask_gt=None, isTrain=False, xyz_o=xyz_o)
 
                     if args.dataset == 'dtu':

@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+import math
 from torchsummary import summary
 
 
@@ -75,8 +76,8 @@ def fourier_encoding(tensor, choice='xyz', gaussian_scale=10, xyz_size=30, dirs_
     else:
         raise NotImplementedError
 
-    def input_encoder(x, a, b): return (torch.cat([a * torch.sin(torch.mm((2.*torch.pi*x), b.T)),
-                                                   a * torch.cos(torch.mm((2.*torch.pi*x), b.T))], axis=-1) / torch.norm(a))
+    def input_encoder(x, a, b): return (torch.cat([a * torch.sin(torch.mm((2.*math.pi*x), b.T)),
+                                                   a * torch.cos(torch.mm((2.*math.pi*x), b.T))], axis=-1) / torch.norm(a))
     ab = ab_xyz if choice == 'xyz' else ab_dirs
     encoding = input_encoder(tensor, *ab)
     return encoding
@@ -278,7 +279,7 @@ class UNet(nn.Module):
     def __init__(self, args, out_dim=3, upsample_mode='nearest'):
         super().__init__()
 
-        in_dim = args.dim * args.points_per_pixel
+        in_dim = args.dim
 
         if args.udim == 'pp':
             filters = [16, 32, 48, 64, 80]
@@ -382,6 +383,37 @@ class UNet_color(nn.Module):
         up1 = self.up1(up2, in64)
 
         return self.final(up1)
+    
+class UNet_super(nn.Module):
+    def __init__(self):
+        super().__init__()
+        
+        # 编码器部分
+        self.encoder = nn.Sequential(
+            nn.ReLU(inplace=False),
+            nn.Conv2d(3, 64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=False),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        
+        # 解码器部分
+        self.decoder = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=False),
+            nn.Conv2d(64, 8, kernel_size=3, padding=1),
+            nn.ReLU(inplace=False),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        )
+
+    def forward(self, x):
+        # 编码器
+        x = self.encoder(x)
+        
+        # 解码器
+        x = self.decoder(x)
+        
+        return x
+
 
 if __name__ == '__main__':
     device = torch.device("cuda")

@@ -1,4 +1,4 @@
-from .net import MLP, UNet, UNet_color, AFNet 
+from .net import MLP, UNet, UNet_color, UNet_super,AFNet 
 from .mpn import MPN, MPN_tiny
 import torch
 import torch.nn as nn
@@ -292,7 +292,7 @@ class Renderer_super(nn.Module):
     """
 
     def __init__(self, args):
-        super(Renderer_color, self).__init__()
+        super(Renderer_super, self).__init__()
         
         if args.af_mlp:
             self.mlp = AFNet(args.dim).to(args.device)
@@ -301,12 +301,13 @@ class Renderer_super(nn.Module):
             
         if args.mpn_tiny:  # better performance, less computation
             self.mpn = MPN_tiny(
-                in_dim=3 * args.points_per_pixel).to(args.device)
+                in_dim= args.feature_channels).to(args.device)
         else:
-            self.mpn = MPN(U=2, udim='pp', in_dim=3 *
-                           args.points_per_pixel).to(args.device)
+            self.mpn = MPN(U=2, udim='pp', in_dim=args.feature_channels).to(args.device)
 
-        self.unet = UNet_color(args).to(args.device)
+        self.unet = UNet(args).to(args.device)
+        self.unet_color = UNet_color(args).to(args.device)
+        self.unet_super = UNet_super().to(args.device)
 
         self.dim = args.dim
         self.use_crop = args.use_crop
@@ -326,7 +327,7 @@ class Renderer_super(nn.Module):
         self.train_size = args.train_size
         self.points_per_pixel = args.points_per_pixel
 
-    def forward(self, color, gt, mask_gt, isTrain):
+    def forward(self, colors, ray, zbufs, gt, mask_gt, isTrain, xyz_o):
         """
         Args:
             zbuf: z-buffer from rasterization (index buffer when xyznear is True)
@@ -343,41 +344,115 @@ class Renderer_super(nn.Module):
             fea_map: the first three dimensions of the feature map of radiance mapping
         """
 
-        H, W, C = color.shape  # [H, W, points_per_pixel]
+        H, W, C = colors.shape  # [H, W, 3*points_per_pixel]
+        H, W, _ = zbufs.shape  # [H, W, points_per_pixel]
+        o = ray[..., :3]  # [H, W, 1]
+        dirs = ray[..., 3:6]  # [H, W, 3]
+        cos = ray[..., -1:]  # [H, W, 1]
 
-        if self.use_crop and isTrain:
-            gt_pad = self.pad_w(gt.permute(2, 0, 1).unsqueeze(0))
-            color_pad = self.pad_w(color.permute(2, 0, 1).unsqueeze(0))
+        _o = o.unsqueeze(-2).expand(H, W, 1, 3)
+        _dirs = dirs.unsqueeze(-2).expand(H, W, 1, 3)
+        _cos = cos.unsqueeze(-2).expand(H, W, 1, 3)
+
+        # 算了算了，crop先不改了
+        # if self.use_crop and isTrain:
+        #     # zbufs
+        #     ray_pad = self.pad_w(ray.permute(2, 0, 1).unsqueeze(0))
+        #     zbufs_pad = self.pad_b(zbufs.permute(2, 0, 1).unsqueeze(0))
+
+        #     # color
+        #     gt_pad = self.pad_w(gt.permute(2, 0, 1).unsqueeze(0))
+        #     color_pad = self.pad_w(color.permute(2, 0, 1).unsqueeze(0))
             
-            if mask_gt is not None:
-                mask_gt = mask_gt.permute(2, 0, 1).unsqueeze(0)
-                cat_img = torch.cat([color_pad, gt_pad, mask_gt], dim=1)
+        #     if mask_gt is not None:
+        #         mask_gt = mask_gt.permute(2, 0, 1).unsqueeze(0)
+        #         cat_img = torch.cat([ray_pad, zbufs_pad,
+        #                              color_pad, gt_pad, mask_gt], dim=1)
+        #     else:
+        #         cat_img = torch.cat([ray_pad, zbufs_pad,
+        #                              color_pad, gt_pad], dim=1)
+
+        #     cat_img = self.randomcrop(cat_img)
+
+        #     _, _, H, W = cat_img.shape
+        #     color = cat_img[0, :C].permute(1, 2, 0) # [h, w, 3 * points_per_pixel]
+        #     # o_crop = cat_img[0, :3].permute(1, 2, 0)
+        #     dirs_crop = cat_img[0, 3:6].permute(1, 2, 0)
+        #     cos_crop = cat_img[0, 6:7].permute(1, 2, 0)
+        #     gt_crop = cat_img[0, 7:10].permute(1, 2, 0)
+        #     gt = cat_img[0, C:C+3].permute(1, 2, 0) # [h, w, 3]
+
+            
+        #     if mask_gt is not None:
+        #         mask_gt = cat_img[0, C+3:].permute(1, 2, 0)
+
+        ############################################
+        
+        # feature map of zbuf
+        feature_map_zbufs=[]
+        for i in range(zbufs.shape[-1]):
+            zbuf = zbufs[..., i].unsqueeze(-1)  # [H, W, 1]
+
+            if isTrain:
+                pix_mask = zbuf > 0.2  # [H, W, 1]
             else:
-                cat_img = torch.cat([color_pad, gt_pad], dim=1)
+                pix_mask = zbuf > 0
 
-            cat_img = self.randomcrop(cat_img)
+            o = _o[pix_mask]  # occ_point 3
+            dirs = _dirs[pix_mask]  # occ_point 3
+            cos = _cos[pix_mask]  # occ_point 1
+            zbuf = zbuf.unsqueeze(-1)[pix_mask]  # occ_point 1
 
-            color = cat_img[0, :C].permute(1, 2, 0) # [h, w, 3 * points_per_pixel]
-            gt = cat_img[0, C:C+3].permute(1, 2, 0) # [h, w, 3]
+            if self.xyznear:
+                xyz_near = o + dirs * zbuf / cos  # occ_point 3
+            else:
+                xyz_near = xyz_o[zbuf.squeeze(-1).long()]
 
-            
-            if mask_gt is not None:
-                mask_gt = cat_img[0, C+3:].permute(1, 2, 0)
+            feature = self.mlp(xyz_near, dirs)  # occ_point 3
+            del xyz_near, zbuf
 
-        # [1, 3 * burst, H, W]
-        rdmp = color.permute(2, 0, 1).unsqueeze(0)
+            feature_map = torch.zeros([H, W, 1, self.dim], device=zbufs.device)
+            feature_map[pix_mask] = feature  # [400, 400, 1, self.dim]
+            feature_map_zbufs.append(feature_map.permute(2, 3, 0, 1)) # [400, 400, self.dim, burst]
+            del feature_map 
 
-        # [1, 3 * self.points_per_pixel, H, W]
-        pred_mask = self.mpn(rdmp)
+        # [burst, 8 (self.dim), H, W]
+        feature_map_zbufs = torch.cat(feature_map_zbufs, dim=0)
+
+        del _o, _dirs, _cos
+        torch.cuda.empty_cache()
+
+        ################################################
+        
+        # feature map of color
+        feature_map_color=[]
+        color = []
+        for i in range(self.points_per_pixel):
+            indices = [3*i, 3*i+1, 3*i+2]
+            color.append(colors[:, :, indices].unsqueeze(0))
+        colors = torch.cat(color, dim=0) # [burst, H, W, 3]
+        for i in range(colors.shape[0]):
+            color = colors[i].unsqueeze(0).permute(0, 3, 1, 2)  # [3, H, W]
+            feature_map_color.append(self.unet_super(color)) # [burst, 8, H, W]
+        # [burst, 8, H, W]
+        feature_map_color = torch.cat(feature_map_color, dim=0)
+
+        ################################################
+
+        # combine the feature map
+        # [burst, 16, H, W]
+        feature_map = torch.cat((feature_map_zbufs, feature_map_color), dim = 1)
+
+        # [burst, 16, H, W]
+        pred_mask = self.mpn(feature_map)
 
         # initial alpha-blending
-        # alpha = torch.cumprod((1 - pred_mask),dim=1)[:,:-1,:,:]
-        # ones = (torch.ones_like(pred_mask).to(pred_mask.device)[:,0,:,:]).unsqueeze(0)
-        # alpha = torch.cat((ones,alpha),1)
-        # fuse_rdmp = rdmp.mul(pred_mask).mul(alpha)
+        alpha = torch.cumprod((1 - pred_mask),dim=1)[:,:-1,:,:]
+        ones = (torch.ones_like(pred_mask).to(pred_mask.device)[:,0,:,:]).unsqueeze(1)
+        alpha = torch.cat((ones,alpha), dim=1)
+        fuse_rdmp = feature_map.mul(pred_mask).mul(alpha)
+        fuse_rdmp =  torch.sum(fuse_rdmp, dim=1).unsqueeze(0)
 
-        # [1, 3 * self.points_per_pixel, H, W]
-        fuse_rdmp = rdmp.mul(pred_mask)
         ret = self.unet(fuse_rdmp)  # [1, 3, H, W]
 
         # if self.mask and (not isTrain):

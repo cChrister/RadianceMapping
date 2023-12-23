@@ -17,8 +17,8 @@ from utils import flip_error_map
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
-DEBUG = False
-# DEBUG = True
+# DEBUG = False
+DEBUG = True
 
 parser = config_parser()
 args = parser.parse_args()
