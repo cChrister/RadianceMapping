@@ -354,37 +354,44 @@ class Renderer_super(nn.Module):
         _dirs = dirs.unsqueeze(-2).expand(H, W, 1, 3)
         _cos = cos.unsqueeze(-2).expand(H, W, 1, 3)
 
-        # 算了算了，crop先不改了
-        # if self.use_crop and isTrain:
-        #     # zbufs
-        #     ray_pad = self.pad_w(ray.permute(2, 0, 1).unsqueeze(0))
-        #     zbufs_pad = self.pad_b(zbufs.permute(2, 0, 1).unsqueeze(0))
-
-        #     # color
-        #     gt_pad = self.pad_w(gt.permute(2, 0, 1).unsqueeze(0))
-        #     color_pad = self.pad_w(color.permute(2, 0, 1).unsqueeze(0))
+        if self.use_crop and isTrain:
+            # zbufs
+            ray_pad = self.pad_w(ray.permute(2, 0, 1).unsqueeze(0))
+            zbufs_pad = self.pad_b(zbufs.permute(2, 0, 1).unsqueeze(0))
+            # color
+            colors_pad = self.pad_w(colors.permute(2, 0, 1).unsqueeze(0))
+            gt_pad = self.pad_w(gt.permute(2, 0, 1).unsqueeze(0))
             
-        #     if mask_gt is not None:
-        #         mask_gt = mask_gt.permute(2, 0, 1).unsqueeze(0)
-        #         cat_img = torch.cat([ray_pad, zbufs_pad,
-        #                              color_pad, gt_pad, mask_gt], dim=1)
-        #     else:
-        #         cat_img = torch.cat([ray_pad, zbufs_pad,
-        #                              color_pad, gt_pad], dim=1)
+            if mask_gt is not None:
+                mask_gt = mask_gt.permute(2, 0, 1).unsqueeze(0)
+                cat_img = torch.cat([ray_pad, colors_pad, gt_pad, mask_gt, zbufs_pad], dim=1)
+            else:
+                cat_img = torch.cat([ray_pad, colors_pad, gt_pad, zbufs_pad], dim=1)
 
-        #     cat_img = self.randomcrop(cat_img)
+            # [1, _, train_size, train_size]
+            cat_img = self.randomcrop(cat_img)
 
-        #     _, _, H, W = cat_img.shape
-        #     color = cat_img[0, :C].permute(1, 2, 0) # [h, w, 3 * points_per_pixel]
-        #     # o_crop = cat_img[0, :3].permute(1, 2, 0)
-        #     dirs_crop = cat_img[0, 3:6].permute(1, 2, 0)
-        #     cos_crop = cat_img[0, 6:7].permute(1, 2, 0)
-        #     gt_crop = cat_img[0, 7:10].permute(1, 2, 0)
-        #     gt = cat_img[0, C:C+3].permute(1, 2, 0) # [h, w, 3]
+            _, _, H, W = cat_img.shape
+            # o_crop = cat_img[0, :3].permute(1, 2, 0)
+            dirs_crop = cat_img[0, 3:6].permute(1, 2, 0)
+            cos_crop = cat_img[0, 6:7].permute(1, 2, 0)
+            colors = cat_img[0, 7:31].permute(1, 2, 0)
+            gt_crop = cat_img[0, 31:34].permute(1, 2, 0)
+            gt = gt_crop
 
             
-        #     if mask_gt is not None:
-        #         mask_gt = cat_img[0, C+3:].permute(1, 2, 0)
+            if mask_gt is not None:
+                mask_gt = cat_img[0, 34].permute(1, 2, 0)
+                zbufs = cat_img[0, 15:].permute(1, 2, 0)
+            else:
+                zbufs = cat_img[0, 34:].permute(1, 2, 0)
+
+            _o = ray[:H, :W, :3].unsqueeze(-2)
+            _dirs = dirs_crop.unsqueeze(-2).expand(H, W, 1, 3)
+            _cos = cos_crop.unsqueeze(-2).expand(H, W, 1, 3)
+
+            del cat_img, ray_pad, gt_pad, zbufs_pad
+            torch.cuda.empty_cache()
 
         ############################################
         
@@ -456,8 +463,7 @@ class Renderer_super(nn.Module):
         ret = self.unet(fuse_rdmp)  # [1, 3, H, W]
 
         # if self.mask and (not isTrain):
-        #     pix_mask = pix_mask.int().unsqueeze(-1).permute(2,
-        #                                                     3, 0, 1)  # [1, 1, H, W]
+        #     pix_mask = pix_mask.int().unsqueeze(-1).permute(2, 3, 0, 1)  # [1, 1, H, W]
         #     ret = ret * pix_mask + (1 - pix_mask)  # 1 3 h w
 
         img = ret.squeeze(0).permute(1, 2, 0)  # [H, W, 3]

@@ -58,8 +58,8 @@ def load_fragments(args):
         str(args.points_per_pixel) +'-test.npy'
     train_path = os.path.join(args.frag_path, train_name) 
     test_path = os.path.join(args.frag_path, test_name)
-    train_buf = np.load(train_path)
-    test_buf = np.load(test_path)
+    train_buf = np.load(train_path, allow_pickle=True)
+    test_buf = np.load(test_path, allow_pickle=True)
     print('Load fragments from', train_name, test_name)
     return torch.tensor(train_buf), torch.tensor(test_buf)
 
@@ -70,8 +70,9 @@ def load_color_fragments(args):
         str(args.points_per_pixel) +'-test.npy'
     train_path = os.path.join(args.frag_path, train_name) 
     test_path = os.path.join(args.frag_path, test_name)
-    train_buf = np.load(train_path)
-    test_buf = np.load(test_path)
+    train_buf = np.load(train_path, allow_pickle=True)
+    test_buf = np.load(test_path, allow_pickle=True)
+
     print('Load fragments from', train_name, test_name)
     return torch.tensor(train_buf), torch.tensor(test_buf)
 

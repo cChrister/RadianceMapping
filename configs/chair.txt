@@ -7,9 +7,9 @@ dataset = nerf
 
 radius = 0.005
 frag_path = './data/fragments/chair'
-H = 400
-W = 400
-train_size = 400
+H = 800
+W = 800
+train_size = 800
 
 dim = 8
 
@@ -32,3 +32,5 @@ test_freq = 10
 vid_freq = 30
 
 feature_channels = 16
+use_crop
+xyznear
