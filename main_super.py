@@ -99,6 +99,7 @@ if __name__ == '__main__':
     loss_lpips = lpips.LPIPS(net='vgg').to(args.device)
     fn_ssim = SSIM().to(args.device)
 
+    t1=time.time()
     # load buf
     if args.xyznear:
         train_buf_z, test_buf_z = load_fragments(args)  # cpu 100 800 800 k
@@ -108,9 +109,11 @@ if __name__ == '__main__':
         train_buf_z, test_buf_z = load_idx(args)  # cpu 100 800 800 k
         train_buf_color, test_buf_color = load_idx(args)  # cpu 100 800 800 k
         xyz_o = train_set.get_pc().xyz  # n 3
+    t2=time.time()
 
     log_string(f'z_buf shape: {train_buf_z.shape}')
     log_string(f'color_buf shape: {train_buf_color.shape}')
+    log_string(f'load buf time: {(t2-t1)/60} minutes')
 
     it = 0
     epoch = 0

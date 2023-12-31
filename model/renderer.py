@@ -372,7 +372,7 @@ class Renderer_super(nn.Module):
             cat_img = self.randomcrop(cat_img)
 
             _, _, H, W = cat_img.shape
-            # o_crop = cat_img[0, :3].permute(1, 2, 0)
+            o_crop = cat_img[0, :3].permute(1, 2, 0)
             dirs_crop = cat_img[0, 3:6].permute(1, 2, 0)
             cos_crop = cat_img[0, 6:7].permute(1, 2, 0)
             colors = cat_img[0, 7:31].permute(1, 2, 0)
@@ -386,7 +386,8 @@ class Renderer_super(nn.Module):
             else:
                 zbufs = cat_img[0, 34:].permute(1, 2, 0)
 
-            _o = ray[:H, :W, :3].unsqueeze(-2)
+            # _o = ray[:H, :W, :3].unsqueeze(-2)
+            _o = o_crop.unsqueeze(-2).expand(H, W, 1, 3)
             _dirs = dirs_crop.unsqueeze(-2).expand(H, W, 1, 3)
             _cos = cos_crop.unsqueeze(-2).expand(H, W, 1, 3)
 
