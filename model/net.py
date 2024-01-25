@@ -279,7 +279,7 @@ class UNet(nn.Module):
     def __init__(self, args, out_dim=3, upsample_mode='nearest'):
         super().__init__()
 
-        in_dim = args.dim
+        in_dim = args.points_per_pixel
 
         if args.udim == 'pp':
             filters = [16, 32, 48, 64, 80]
@@ -385,7 +385,7 @@ class UNet_color(nn.Module):
         return self.final(up1)
     
 class UNet_super(nn.Module):
-    def __init__(self):
+    def __init__(self, args):
         super().__init__()
         
         # 编码器部分
@@ -400,7 +400,7 @@ class UNet_super(nn.Module):
         self.decoder = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3, padding=1),
             nn.ReLU(inplace=False),
-            nn.Conv2d(64, 8, kernel_size=3, padding=1),
+            nn.Conv2d(64, args.dim, kernel_size=3, padding=1),
             nn.ReLU(inplace=False),
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         )

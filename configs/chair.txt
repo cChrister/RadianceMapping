@@ -11,7 +11,7 @@ H = 800
 W = 800
 train_size = 400
 
-dim = 8
+dim = 4
 
 mlp_lr = 5e-4
 u_lr = 1.5e-4
@@ -31,6 +31,7 @@ edge_mask = 0
 test_freq = 10
 vid_freq = 30
 
-feature_channels = 16
-use_crop
+mpn_tiny
+feature_channels = 8
 xyznear
+use_crop

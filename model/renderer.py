@@ -307,7 +307,7 @@ class Renderer_super(nn.Module):
 
         self.unet = UNet(args).to(args.device)
         self.unet_color = UNet_color(args).to(args.device)
-        self.unet_super = UNet_super().to(args.device)
+        self.unet_super = UNet_super(args).to(args.device)
 
         self.dim = args.dim
         self.use_crop = args.use_crop
@@ -424,7 +424,7 @@ class Renderer_super(nn.Module):
             feature_map_zbufs.append(feature_map.permute(2, 3, 0, 1)) # [400, 400, self.dim, burst]
             del feature_map 
 
-        # [burst, 8 (self.dim), H, W]
+        # [burst, 4 (self.dim), H, W]
         feature_map_zbufs = torch.cat(feature_map_zbufs, dim=0)
 
         del _o, _dirs, _cos
@@ -441,17 +441,17 @@ class Renderer_super(nn.Module):
         colors = torch.cat(color, dim=0) # [burst, H, W, 3]
         for i in range(colors.shape[0]):
             color = colors[i].unsqueeze(0).permute(0, 3, 1, 2)  # [3, H, W]
-            feature_map_color.append(self.unet_super(color)) # [burst, 8, H, W]
-        # [burst, 8, H, W]
+            feature_map_color.append(self.unet_super(color)) # [burst, self.dim, H, W]
+        # [burst, self.dim, H, W]
         feature_map_color = torch.cat(feature_map_color, dim=0)
 
         ################################################
 
         # combine the feature map
-        # [burst, 16, H, W]
+        # [burst, 2*self.dim, H, W]
         feature_map = torch.cat((feature_map_zbufs, feature_map_color), dim = 1)
 
-        # [burst, 16, H, W]
+        # [burst, 8, H, W]
         pred_mask = self.mpn(feature_map)
 
         # initial alpha-blending
