@@ -300,13 +300,11 @@ class Renderer_super(nn.Module):
             self.mlp = MLP(args.dim, args.use_fourier).to(args.device)
             
         if args.mpn_tiny:  # better performance, less computation
-            self.mpn = MPN_tiny(
-                in_dim= args.feature_channels).to(args.device)
+            self.mpn = MPN_tiny(args).to(args.device)
         else:
             self.mpn = MPN(U=2, udim='pp', in_dim=args.feature_channels).to(args.device)
 
         self.unet = UNet(args).to(args.device)
-        self.unet_color = UNet_color(args).to(args.device)
         self.unet_super = UNet_super(args).to(args.device)
 
         self.dim = args.dim
@@ -326,6 +324,7 @@ class Renderer_super(nn.Module):
         self.mask = args.pix_mask
         self.train_size = args.train_size
         self.points_per_pixel = args.points_per_pixel
+        self.alpha_blending = args.alpha_blending
 
     def forward(self, colors, ray, zbufs, gt, mask_gt, isTrain, xyz_o):
         """
@@ -425,7 +424,10 @@ class Renderer_super(nn.Module):
             del feature_map 
 
         # [burst, 4 (self.dim), H, W]
-        feature_map_zbufs = torch.cat(feature_map_zbufs, dim=0)
+        if self.alpha_blending:
+            feature_map_zbufs = torch.cat(feature_map_zbufs, dim=0)
+        else:
+            feature_map_zbufs = torch.cat(feature_map_zbufs, dim=1)
 
         del _o, _dirs, _cos
         torch.cuda.empty_cache()
@@ -443,7 +445,10 @@ class Renderer_super(nn.Module):
             color = colors[i].unsqueeze(0).permute(0, 3, 1, 2)  # [3, H, W]
             feature_map_color.append(self.unet_super(color)) # [burst, self.dim, H, W]
         # [burst, self.dim, H, W]
-        feature_map_color = torch.cat(feature_map_color, dim=0)
+        if self.alpha_blending:
+            feature_map_color = torch.cat(feature_map_color, dim=0)
+        else:
+            feature_map_color = torch.cat(feature_map_color, dim=1)
 
         ################################################
 
@@ -454,12 +459,15 @@ class Renderer_super(nn.Module):
         # [burst, 8, H, W]
         pred_mask = self.mpn(feature_map)
 
-        # initial alpha-blending
-        alpha = torch.cumprod((1 - pred_mask),dim=1)[:,:-1,:,:]
-        ones = (torch.ones_like(pred_mask).to(pred_mask.device)[:,0,:,:]).unsqueeze(1)
-        alpha = torch.cat((ones,alpha), dim=1)
-        fuse_rdmp = feature_map.mul(pred_mask).mul(alpha)
-        fuse_rdmp =  torch.sum(fuse_rdmp, dim=1).unsqueeze(0)
+        if self.alpha_blending:
+            # initial alpha-blending
+            alpha = torch.cumprod((1 - pred_mask),dim=1)[:,:-1,:,:]
+            ones = (torch.ones_like(pred_mask).to(pred_mask.device)[:,0,:,:]).unsqueeze(1)
+            alpha = torch.cat((ones,alpha), dim=1)
+            fuse_rdmp = feature_map.mul(pred_mask).mul(alpha)
+            fuse_rdmp =  torch.sum(fuse_rdmp, dim=1).unsqueeze(0)
+        else:
+            fuse_rdmp = feature_map.mul(pred_mask)
 
         ret = self.unet(fuse_rdmp)  # [1, 3, H, W]
 

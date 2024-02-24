@@ -32,6 +32,5 @@ test_freq = 10
 vid_freq = 30
 
 mpn_tiny
-feature_channels = 8
-xyznear
+mpn_color
 use_crop

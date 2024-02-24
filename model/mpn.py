@@ -140,8 +140,14 @@ class MPN(nn.Module):
 
 class MPN_tiny(nn.Module):
     # reference: zero-shot noise2noise: efficient image denoising without any data
-    def __init__(self, in_dim, chan_embed=48) -> None:
+    def __init__(self, args, chan_embed=48) -> None:
         super(MPN_tiny, self).__init__()
+
+        in_dim = args.dim
+        if args.mpn_color:
+            in_dim = args.dim * args.points_per_pixel * 2
+        if args.alpha_blending:
+            in_dim = args.dim * 2
 
         self.act = nn.LeakyReLU(negative_slope=0.2, inplace=True)
         self.conv1 = nn.Conv2d(in_dim, chan_embed, 3, padding=1)

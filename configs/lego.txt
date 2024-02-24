@@ -7,8 +7,8 @@ dataset = nerf
 
 radius = 0.005
 frag_path = './data/fragments/lego'
-H = 400
-W = 400
+H = 800
+W = 800
 train_size = 400
 
 dim = 8
@@ -30,3 +30,8 @@ vgg_l = 0.01
 edge_mask = 0
 test_freq = 10
 vid_freq = 30
+
+mpn_tiny
+mpn_color
+use_crop
+alpha_blending

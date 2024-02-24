@@ -48,7 +48,8 @@ def config_parser():
     parser.add_argument("--pad", type=int, help='num of padding')
 
     parser.add_argument("--use_fourier", action='store_true', default=False, help='whether to enable fourier_encoding')
-    parser.add_argument("--feature_channels", default=16, type=int, help='the channels of combined feature map')
+    parser.add_argument("--mpn_color", action='store_true', default=False, help='whether change net structure to enable color information')
+    parser.add_argument("--alpha_blending", action='store_true', default=False, help='whether to enable alpha blending')
     return parser
 
 def load_fragments(args):

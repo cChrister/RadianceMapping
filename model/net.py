@@ -279,7 +279,11 @@ class UNet(nn.Module):
     def __init__(self, args, out_dim=3, upsample_mode='nearest'):
         super().__init__()
 
-        in_dim = args.points_per_pixel
+        in_dim = args.points_per_pixel * args.dim
+        if args.mpn_color:
+            in_dim = args.points_per_pixel * args.dim * 2
+        if args.alpha_blending:
+            in_dim = args.points_per_pixel
 
         if args.udim == 'pp':
             filters = [16, 32, 48, 64, 80]

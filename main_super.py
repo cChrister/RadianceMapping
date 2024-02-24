@@ -113,7 +113,7 @@ if __name__ == '__main__':
 
     log_string(f'z_buf shape: {train_buf_z.shape}')
     log_string(f'color_buf shape: {train_buf_color.shape}')
-    log_string(f'load buf time: {(t2-t1)/60} minutes')
+    log_string(f'load buf time: {(t2-t1)/60:.2f} minutes')
 
     it = 0
     epoch = 0
