@@ -11,7 +11,7 @@ H = 800
 W = 800
 train_size = 400
 
-dim = 8
+dim = 4
 
 mlp_lr = 5e-4
 u_lr = 1.5e-4
@@ -34,4 +34,3 @@ vid_freq = 30
 mpn_tiny
 mpn_color
 use_crop
-alpha_blending

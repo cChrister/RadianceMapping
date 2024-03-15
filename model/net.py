@@ -284,6 +284,8 @@ class UNet(nn.Module):
             in_dim = args.points_per_pixel * args.dim * 2
         if args.alpha_blending:
             in_dim = args.points_per_pixel
+        if args.bias_color:
+            in_dim = args.dim
 
         if args.udim == 'pp':
             filters = [16, 32, 48, 64, 80]

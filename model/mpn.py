@@ -148,6 +148,8 @@ class MPN_tiny(nn.Module):
             in_dim = args.dim * args.points_per_pixel * 2
         if args.alpha_blending:
             in_dim = args.dim * 2
+        if args.bias_color:
+            in_dim = args.dim
 
         self.act = nn.LeakyReLU(negative_slope=0.2, inplace=True)
         self.conv1 = nn.Conv2d(in_dim, chan_embed, 3, padding=1)
